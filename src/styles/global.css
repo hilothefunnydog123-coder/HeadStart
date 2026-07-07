@@ -1,37 +1,37 @@
 /*
  * Departure — visual language
- * A warm "night → dawn" palette: a cool twilight sky up top settling into a
- * sunrise glow at the horizon. Fraunces (a soft, optical serif) carries the
- * times so the app feels written, not generated; Inter handles the interface.
- * Colour is used with restraint — one warm accent, plus a phase hue that walks
- * from night blue to sunrise amber to morning green as your day begins.
+ * A composed, cool-graphite canvas with one disciplined signature accent:
+ * emerald-teal, which doubles as the product's meaning — "on time / go". No
+ * rainbow of hues; phase is expressed as a tight walk within the teal→green
+ * family, with a calm slate at rest. Fraunces (a soft optical serif) carries
+ * the times so the app feels authored, not generated; Inter runs the interface.
  */
 
 :root {
-  /* Twilight surfaces */
-  --bg: #17151d;
-  --bg-2: #1b1922;
-  --ink: #100e15; /* deepest, for insets */
-  --surface: #201e29;
-  --surface-2: #262330;
-  --surface-3: #2d2937;
-  --hair: rgba(244, 239, 247, 0.09);
-  --hair-strong: rgba(244, 239, 247, 0.16);
+  /* Cool graphite surfaces */
+  --bg: #0d1014;
+  --bg-2: #10141a;
+  --ink: #080a0d; /* deepest, for insets */
+  --surface: #141920;
+  --surface-2: #191f27;
+  --surface-3: #202834;
+  --hair: rgba(233, 240, 247, 0.08);
+  --hair-strong: rgba(233, 240, 247, 0.15);
 
-  /* Warm neutrals for text */
-  --text: #f3eff6;
-  --text-dim: #a9a3b6;
-  --text-faint: #746e82;
+  /* Cool neutrals for text */
+  --text: #eef2f6;
+  --text-dim: #99a3b0;
+  --text-faint: #616c79;
 
-  /* Sunrise accent */
-  --accent: #f0a35c;
-  --accent-2: #e67e68;
+  /* Emerald-teal signature accent */
+  --accent: #2fd3a6;
+  --accent-2: #29b7c4;
 
-  --good: #56c6a0;
-  --warn: #f0b45c;
-  --hot: #eb7074;
+  --good: #2fd3a6;
+  --warn: #e4c162;
+  --hot: #ef6f81;
 
-  --ring-track: rgba(244, 239, 247, 0.08);
+  --ring-track: rgba(233, 240, 247, 0.07);
 
   --radius: 20px;
   --radius-sm: 13px;
@@ -45,39 +45,39 @@
   --font-ui: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Fraunces Variable", "Fraunces", Georgia, "Times New Roman", serif;
 
-  --phase: #9aa0e0;
-  --phase-2: #7b7fd4;
+  --phase: #5fb9c6;
+  --phase-2: #4fa6c2;
 
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f7f2ea;
-    --bg-2: #f1eae0;
-    --ink: #efe7db;
-    --surface: #fffdf9;
-    --surface-2: #faf5ee;
-    --surface-3: #f3ece1;
-    --hair: rgba(48, 34, 24, 0.1);
-    --hair-strong: rgba(48, 34, 24, 0.18);
+    --bg: #f2f5f8;
+    --bg-2: #eaeef3;
+    --ink: #e6ebf1;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --surface-3: #eef2f7;
+    --hair: rgba(20, 30, 45, 0.09);
+    --hair-strong: rgba(20, 30, 45, 0.16);
 
-    --text: #241f2b;
-    --text-dim: #6a6472;
-    --text-faint: #9a93a0;
+    --text: #131922;
+    --text-dim: #59636f;
+    --text-faint: #929ba7;
 
-    --accent: #d9823f;
-    --accent-2: #cf6249;
+    --accent: #0fa384;
+    --accent-2: #0f92a6;
 
-    --good: #2f9e7c;
-    --warn: #cc8a2c;
-    --hot: #d1585c;
+    --good: #0fa384;
+    --warn: #bf931f;
+    --hot: #d1566a;
 
-    --ring-track: rgba(48, 34, 24, 0.1);
+    --ring-track: rgba(20, 30, 45, 0.1);
 
-    --shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
-      0 20px 40px -26px rgba(80, 55, 30, 0.35), 0 3px 10px -6px rgba(80, 55, 30, 0.2);
-    --shadow-soft: 0 10px 26px -16px rgba(80, 55, 30, 0.28);
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset,
+      0 20px 40px -26px rgba(30, 45, 65, 0.28), 0 3px 10px -6px rgba(30, 45, 65, 0.16);
+    --shadow-soft: 0 10px 26px -16px rgba(30, 45, 65, 0.22);
 
     color-scheme: light;
   }
@@ -103,16 +103,15 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Night sky settling into a dawn glow at the horizon. Static and intentional. */
+/* A quiet, composed wash — a faint teal light from above, nothing showy. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(125% 78% at 50% 116%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 56%),
-    radial-gradient(90% 55% at 82% -12%, rgba(123, 127, 212, 0.16), transparent 60%),
-    radial-gradient(70% 45% at 10% -6%, rgba(230, 126, 104, 0.1), transparent 62%),
+    radial-gradient(95% 60% at 50% -12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 58%),
+    radial-gradient(80% 60% at 100% 108%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 60%),
     linear-gradient(180deg, var(--bg), var(--bg-2));
 }
 
@@ -263,25 +262,26 @@ body::after {
   transition: background 0.7s ease;
 }
 
+/* Phase = a tight walk within the cool teal→green family, slate at rest. */
 .phase-sleep {
-  --phase: #9aa0e0;
-  --phase-2: #7b7fd4;
+  --phase: #6bb6c4;
+  --phase-2: #5aa0c0;
 }
 .phase-wake {
-  --phase: #f2b45c;
-  --phase-2: #ec8a5c;
+  --phase: #34d6a6;
+  --phase-2: #2ec2bd;
 }
 .phase-prep {
-  --phase: #ec8264;
-  --phase-2: #f2a96c;
+  --phase: #2dc3c0;
+  --phase-2: #33cfa2;
 }
 .phase-leave {
-  --phase: #4fc2a0;
-  --phase-2: #6fd0b0;
+  --phase: #2fd39c;
+  --phase-2: #45d9b4;
 }
 .phase-enroute {
-  --phase: #948eaa;
-  --phase-2: #726c82;
+  --phase: #808d99;
+  --phase-2: #626f7c;
 }
 
 /* ---------- Radial dial ---------- */
@@ -355,10 +355,10 @@ body::after {
 @keyframes breathe {
   0%,
   100% {
-    box-shadow: var(--shadow), 0 0 0 0 color-mix(in srgb, var(--warn) 34%, transparent);
+    box-shadow: var(--shadow), 0 0 0 0 color-mix(in srgb, var(--phase) 40%, transparent);
   }
   50% {
-    box-shadow: var(--shadow), 0 0 34px -6px color-mix(in srgb, var(--warn) 34%, transparent);
+    box-shadow: var(--shadow), 0 0 36px -6px color-mix(in srgb, var(--phase) 40%, transparent);
   }
 }
 
