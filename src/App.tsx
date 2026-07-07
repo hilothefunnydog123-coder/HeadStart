@@ -28,7 +28,7 @@ import { useBriefing } from "./hooks/useBriefing";
 import { loadState, saveState, type AppState } from "./state/store";
 import { Icon } from "./components/Icon";
 import {
-  forgetPlaceHistoryEntry,
+  dismissPlaceSuggestion,
   rememberPlaceUsage,
   suggestPlaces,
 } from "./core/placeHistory";
@@ -94,10 +94,13 @@ export default function App() {
     }));
   };
 
-  const forgetPlaceSuggestion = (historyId: string) => {
+  const hidePlaceSuggestion = (
+    historyId: string,
+    context: PlaceUsageContext,
+  ) => {
     setState((s) => ({
       ...s,
-      placeHistory: forgetPlaceHistoryEntry(s.placeHistory, historyId),
+      placeHistory: dismissPlaceSuggestion(s.placeHistory, historyId, context),
     }));
   };
 
@@ -282,7 +285,7 @@ export default function App() {
               commitments={state.commitments}
               placeSuggestions={destinationSuggestions}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
-              onDismissPlaceSuggestion={forgetPlaceSuggestion}
+              onDismissPlaceSuggestion={hidePlaceSuggestion}
               onChange={(commitments) =>
                 setState((s) => ({ ...s, commitments }))
               }
@@ -317,7 +320,7 @@ export default function App() {
               placeSuggestions={homeSuggestions}
               placeHistoryCount={state.placeHistory.length}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
-              onDismissPlaceSuggestion={forgetPlaceSuggestion}
+              onDismissPlaceSuggestion={hidePlaceSuggestion}
               onChange={(settings) => setState((s) => ({ ...s, settings }))}
               onClearPlaceHistory={() =>
                 setState((s) => ({ ...s, placeHistory: [] }))

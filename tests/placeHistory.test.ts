@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  forgetPlaceHistoryEntry,
+  dismissPlaceSuggestion,
   rememberPlaceUsage,
   suggestPlaces,
 } from "../src/core/placeHistory";
@@ -58,7 +58,7 @@ describe("place history", () => {
     expect(suggestions[0]?.label).toBe("Usually around now");
   });
 
-  it("forgets one suggested place without clearing the rest of history", () => {
+  it("temporarily hides a dismissed suggestion without deleting history", () => {
     const otherPlace: Place = {
       id: "gym",
       label: "Gym",
@@ -74,12 +74,109 @@ describe("place history", () => {
     );
     expect(librarySuggestion).toBeDefined();
 
-    const nextHistory = forgetPlaceHistoryEntry(
+    const nextHistory = dismissPlaceSuggestion(
       history,
       librarySuggestion?.historyId ?? "",
+      mondayMorning,
+      new Date("2026-07-06T16:00:00Z"),
     );
 
-    expect(suggestPlaces(nextHistory, mondayMorning).map((item) => item.place.label))
-      .toEqual(["Gym"]);
+    expect(
+      suggestPlaces(
+        nextHistory,
+        mondayMorning,
+        4,
+        new Date("2026-07-06T17:00:00Z"),
+      ).map((item) => item.place.label),
+    ).toEqual(["Gym"]);
+    expect(nextHistory).toHaveLength(2);
+
+    expect(
+      suggestPlaces(
+        nextHistory,
+        { ...mondayMorning, weekday: 2 },
+        4,
+        new Date("2026-07-08T16:00:00Z"),
+      ).map((item) => item.place.label),
+    ).toContain("Main Library");
+  });
+
+  it("stops suggesting a place after dismissing it around the same time on three days", () => {
+    let history: PlaceHistoryEntry[] = [];
+    history = rememberPlaceUsage(history, place, mondayMorning);
+    const suggestion = suggestPlaces(history, mondayMorning)[0];
+    expect(suggestion).toBeDefined();
+
+    history = dismissPlaceSuggestion(
+      history,
+      suggestion?.historyId ?? "",
+      mondayMorning,
+      new Date("2026-07-06T16:00:00Z"),
+    );
+    history = dismissPlaceSuggestion(
+      history,
+      suggestion?.historyId ?? "",
+      { ...mondayMorning, weekday: 2, hour: 10 },
+      new Date("2026-07-07T17:00:00Z"),
+    );
+    history = dismissPlaceSuggestion(
+      history,
+      suggestion?.historyId ?? "",
+      { ...mondayMorning, weekday: 3, hour: 8 },
+      new Date("2026-07-08T15:00:00Z"),
+    );
+
+    expect(
+      suggestPlaces(
+        history,
+        { ...mondayMorning, weekday: 4, hour: 9 },
+        4,
+        new Date("2026-07-10T16:00:00Z"),
+      ),
+    ).toEqual([]);
+
+    expect(
+      suggestPlaces(
+        history,
+        { ...mondayMorning, weekday: 4, hour: 15 },
+        4,
+        new Date("2026-07-10T22:00:00Z"),
+      ).map((item) => item.place.label),
+    ).toEqual(["Main Library"]);
+  });
+
+  it("does not permanently suppress repeated dismissals on the same day", () => {
+    let history: PlaceHistoryEntry[] = [];
+    history = rememberPlaceUsage(history, place, mondayMorning);
+    const suggestion = suggestPlaces(history, mondayMorning)[0];
+    expect(suggestion).toBeDefined();
+
+    history = dismissPlaceSuggestion(
+      history,
+      suggestion?.historyId ?? "",
+      mondayMorning,
+      new Date("2026-07-06T16:00:00Z"),
+    );
+    history = dismissPlaceSuggestion(
+      history,
+      suggestion?.historyId ?? "",
+      { ...mondayMorning, hour: 10 },
+      new Date("2026-07-06T17:00:00Z"),
+    );
+    history = dismissPlaceSuggestion(
+      history,
+      suggestion?.historyId ?? "",
+      { ...mondayMorning, hour: 8 },
+      new Date("2026-07-06T18:00:00Z"),
+    );
+
+    expect(
+      suggestPlaces(
+        history,
+        { ...mondayMorning, weekday: 2, hour: 9 },
+        4,
+        new Date("2026-07-08T16:00:00Z"),
+      ).map((item) => item.place.label),
+    ).toEqual(["Main Library"]);
   });
 });

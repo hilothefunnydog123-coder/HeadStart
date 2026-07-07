@@ -16,7 +16,10 @@ interface Props {
   placeSuggestions: PlaceSuggestion[];
   placeHistoryCount: number;
   onPlaceSelected: (place: Place, context: PlaceUsageContext) => void;
-  onDismissPlaceSuggestion: (historyId: string) => void;
+  onDismissPlaceSuggestion: (
+    historyId: string,
+    context: PlaceUsageContext,
+  ) => void;
   onClearPlaceHistory: () => void;
 }
 
@@ -55,7 +58,9 @@ export function SettingsPanel({
         onPlaceSelected={(place) =>
           onPlaceSelected(place, currentPlaceContext("home"))
         }
-        onDismissSuggestion={onDismissPlaceSuggestion}
+        onDismissSuggestion={(historyId) =>
+          onDismissPlaceSuggestion(historyId, currentPlaceContext("home"))
+        }
       />
 
       <div className="field-grid">

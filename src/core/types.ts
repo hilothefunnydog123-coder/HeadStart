@@ -21,6 +21,7 @@ export interface PlaceHistoryEntry {
   useCount: number;
   lastUsedAt: string;
   contexts: PlaceUsageContext[];
+  suggestionDismissals?: PlaceSuggestionDismissal[];
 }
 
 export interface PlaceUsageContext {
@@ -28,6 +29,16 @@ export interface PlaceUsageContext {
   weekday: Weekday;
   hour: number;
   travelMode?: TravelMode;
+}
+
+/** User feedback that a learned place should be hidden for a time context. */
+export interface PlaceSuggestionDismissal {
+  kind: PlaceUsageContext["kind"];
+  hour: number;
+  travelMode?: TravelMode;
+  hiddenUntil: string;
+  dismissedDates: string[];
+  suppressedAt?: string;
 }
 
 /** Calendar providers the app can import as first-commitment sources. */

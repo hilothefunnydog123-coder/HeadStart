@@ -1,6 +1,7 @@
 import type {
   Place,
   PlaceHistoryEntry,
+  PlaceSuggestionDismissal,
   PlaceUsageContext,
   TravelMode,
   Weekday,
@@ -17,6 +18,9 @@ export interface PlaceSuggestion {
 
 const MAX_HISTORY = 30;
 const MAX_CONTEXTS_PER_PLACE = 20;
+const MAX_DISMISSALS_PER_PLACE = 10;
+const TEMP_HIDE_MS = 24 * 60 * 60 * 1000;
+const DISMISS_DAYS_TO_SUPPRESS = 3;
 
 export function rememberPlaceUsage(
   history: PlaceHistoryEntry[],
@@ -42,6 +46,7 @@ export function rememberPlaceUsage(
         useCount: 1,
         lastUsedAt: usedAt.toISOString(),
         contexts: [context],
+        suggestionDismissals: [],
       };
 
   return [entry, ...history.filter((item) => item.id !== id)]
@@ -53,9 +58,10 @@ export function suggestPlaces(
   history: PlaceHistoryEntry[],
   context: PlaceUsageContext,
   limit = 4,
+  at = new Date(),
 ): PlaceSuggestion[] {
   return history
-    .map((entry) => suggestionForEntry(entry, context))
+    .map((entry) => suggestionForEntry(entry, context, at))
     .filter((suggestion): suggestion is PlaceSuggestion => suggestion !== null)
     .sort((a, b) => {
       const reasonScore =
@@ -67,11 +73,29 @@ export function suggestPlaces(
     .slice(0, limit);
 }
 
-export function forgetPlaceHistoryEntry(
+export function dismissPlaceSuggestion(
   history: PlaceHistoryEntry[],
   historyId: string,
+  context: PlaceUsageContext,
+  dismissedAt = new Date(),
 ): PlaceHistoryEntry[] {
-  return history.filter((entry) => entry.id !== historyId);
+  return history.map((entry) => {
+    if (entry.id !== historyId) return entry;
+    const dateKey = localDateKey(dismissedAt);
+    const nextDismissal = dismissalForContext(entry, context);
+    const dismissals = entry.suggestionDismissals ?? [];
+    const updatedDismissal = nextDismissal
+      ? updateDismissal(nextDismissal, dateKey, dismissedAt)
+      : createDismissal(context, dateKey, dismissedAt);
+
+    return {
+      ...entry,
+      suggestionDismissals: [
+        updatedDismissal,
+        ...dismissals.filter((dismissal) => dismissal !== nextDismissal),
+      ].slice(0, MAX_DISMISSALS_PER_PLACE),
+    };
+  });
 }
 
 export function normalizePlaceHistory(value: unknown): PlaceHistoryEntry[] {
@@ -85,7 +109,10 @@ export function normalizePlaceHistory(value: unknown): PlaceHistoryEntry[] {
 function suggestionForEntry(
   entry: PlaceHistoryEntry,
   context: PlaceUsageContext,
+  at: Date,
 ): PlaceSuggestion | null {
+  if (isDismissedForContext(entry, context, at)) return null;
+
   const matchingContexts = entry.contexts.filter((item) =>
     isSimilarContext(item, context),
   );
@@ -127,6 +154,74 @@ function isSimilarContext(
   );
 }
 
+function isDismissedForContext(
+  entry: PlaceHistoryEntry,
+  context: PlaceUsageContext,
+  at: Date,
+): boolean {
+  const dismissal = dismissalForContext(entry, context);
+  if (!dismissal) return false;
+  if (dismissal.suppressedAt) return true;
+  return new Date(dismissal.hiddenUntil).getTime() > at.getTime();
+}
+
+function dismissalForContext(
+  entry: PlaceHistoryEntry,
+  context: PlaceUsageContext,
+): PlaceSuggestionDismissal | undefined {
+  return entry.suggestionDismissals?.find((dismissal) =>
+    isSimilarDismissalContext(dismissal, context),
+  );
+}
+
+function createDismissal(
+  context: PlaceUsageContext,
+  dateKey: string,
+  dismissedAt: Date,
+): PlaceSuggestionDismissal {
+  return {
+    kind: context.kind,
+    hour: context.hour,
+    travelMode: context.travelMode,
+    hiddenUntil: hiddenUntil(dismissedAt),
+    dismissedDates: [dateKey],
+  };
+}
+
+function updateDismissal(
+  dismissal: PlaceSuggestionDismissal,
+  dateKey: string,
+  dismissedAt: Date,
+): PlaceSuggestionDismissal {
+  const dismissedDates = [
+    dateKey,
+    ...dismissal.dismissedDates.filter((date) => date !== dateKey),
+  ];
+  return {
+    ...dismissal,
+    hiddenUntil: hiddenUntil(dismissedAt),
+    dismissedDates,
+    suppressedAt:
+      dismissal.suppressedAt ??
+      (dismissedDates.length >= DISMISS_DAYS_TO_SUPPRESS
+        ? dismissedAt.toISOString()
+        : undefined),
+  };
+}
+
+function isSimilarDismissalContext(
+  dismissal: PlaceSuggestionDismissal,
+  context: PlaceUsageContext,
+): boolean {
+  return (
+    dismissal.kind === context.kind &&
+    Math.abs(dismissal.hour - context.hour) <= 2 &&
+    (!context.travelMode ||
+      !dismissal.travelMode ||
+      context.travelMode === dismissal.travelMode)
+  );
+}
+
 function normalizeEntry(value: unknown): PlaceHistoryEntry | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Partial<PlaceHistoryEntry>;
@@ -146,6 +241,43 @@ function normalizeEntry(value: unknown): PlaceHistoryEntry | null {
         ? item.lastUsedAt
         : new Date(0).toISOString(),
     contexts: contexts.slice(0, MAX_CONTEXTS_PER_PLACE),
+    suggestionDismissals: normalizeDismissals(item.suggestionDismissals),
+  };
+}
+
+function normalizeDismissals(value: unknown): PlaceSuggestionDismissal[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((dismissal) => normalizeDismissal(dismissal))
+    .filter(
+      (dismissal): dismissal is PlaceSuggestionDismissal => dismissal !== null,
+    )
+    .slice(0, MAX_DISMISSALS_PER_PLACE);
+}
+
+function normalizeDismissal(value: unknown): PlaceSuggestionDismissal | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Partial<PlaceSuggestionDismissal>;
+  if (item.kind !== "home" && item.kind !== "destination") return null;
+  const hour = Number(item.hour);
+  if (!Number.isFinite(hour)) return null;
+  const hiddenUntil =
+    typeof item.hiddenUntil === "string"
+      ? item.hiddenUntil
+      : new Date(0).toISOString();
+  const dismissedDates = Array.isArray(item.dismissedDates)
+    ? item.dismissedDates.filter(
+        (date): date is string => typeof date === "string",
+      )
+    : [];
+  return {
+    kind: item.kind,
+    hour: Math.min(23, Math.max(0, Math.round(hour))),
+    travelMode: isTravelMode(item.travelMode) ? item.travelMode : undefined,
+    hiddenUntil,
+    dismissedDates,
+    suppressedAt:
+      typeof item.suppressedAt === "string" ? item.suppressedAt : undefined,
   };
 }
 
@@ -186,4 +318,15 @@ function placeHistoryId(place: Place): string {
   const lat = place.lat.toFixed(5);
   const lng = place.lng.toFixed(5);
   return `place-${lat},${lng}`;
+}
+
+function hiddenUntil(dismissedAt: Date): string {
+  return new Date(dismissedAt.getTime() + TEMP_HIDE_MS).toISOString();
+}
+
+function localDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

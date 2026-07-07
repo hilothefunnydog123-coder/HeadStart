@@ -250,7 +250,7 @@ export function PlacePicker({
                   <button
                     type="button"
                     className="suggestion-dismiss"
-                    aria-label={`Dismiss ${suggestion.place.label} suggestion`}
+                    aria-label={`Hide ${suggestion.place.label} suggestion for now`}
                     onClick={() => onDismissSuggestion(suggestion.historyId)}
                   >
                     <Icon name="close" size={14} />
