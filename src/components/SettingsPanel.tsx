@@ -1,13 +1,35 @@
-import type { Settings } from "../core/types";
+import { useEffect, useState } from "react";
+import type { PlaceSuggestion } from "../core/placeHistory";
+import type { Place, PlaceUsageContext, Settings } from "../core/types";
+import {
+  notificationPermission,
+  requestAlarmNotificationPermission,
+  showAlarmNotification,
+  type AlarmNotificationPermission,
+} from "../core/notifications";
 import { listProviders } from "../core/traffic/provider";
 import { PlacePicker } from "./PlacePicker";
 
 interface Props {
   settings: Settings;
   onChange: (settings: Settings) => void;
+  placeSuggestions: PlaceSuggestion[];
+  onPlaceSelected: (place: Place, context: PlaceUsageContext) => void;
 }
 
-export function SettingsPanel({ settings, onChange }: Props) {
+export function SettingsPanel({
+  settings,
+  onChange,
+  placeSuggestions,
+  onPlaceSelected,
+}: Props) {
+  const [permission, setPermission] =
+    useState<AlarmNotificationPermission>("unsupported");
+
+  useEffect(() => {
+    setPermission(notificationPermission());
+  }, []);
+
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
@@ -20,6 +42,10 @@ export function SettingsPanel({ settings, onChange }: Props) {
         label="Home (departure point)"
         value={settings.home}
         onChange={(home) => set("home", home)}
+        suggestions={placeSuggestions}
+        onPlaceSelected={(place) =>
+          onPlaceSelected(place, currentPlaceContext("home"))
+        }
       />
 
       <div className="field-grid">
@@ -93,23 +119,72 @@ export function SettingsPanel({ settings, onChange }: Props) {
         )}
       </div>
 
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={settings.soundEnabled}
-          onChange={(e) => set("soundEnabled", e.target.checked)}
-        />
-        <span>Play a sound when it's time to wake up</span>
-      </label>
+      <section className="settings-card" aria-labelledby="alerts-heading">
+        <h3 id="alerts-heading">Alerts</h3>
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={settings.soundEnabled}
+            onChange={(e) => set("soundEnabled", e.target.checked)}
+          />
+          <span>Play a sound when this tab is open</span>
+        </label>
 
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={settings.locationTrackingEnabled}
-          onChange={(e) => set("locationTrackingEnabled", e.target.checked)}
-        />
-        <span>Use live location for missed-departure alerts</span>
-      </label>
+        <div className="permission-panel">
+          <div>
+            <strong>Browser notifications</strong>
+            <p>
+              Shows wake and leave alerts through the browser or installed PWA.
+              Background delivery depends on browser support.
+            </p>
+            <small className="muted">Permission: {permissionLabel(permission)}</small>
+          </div>
+          <div className="permission-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={permission === "unsupported" || permission === "denied"}
+              onClick={() => void requestNotifications(setPermission, set)}
+            >
+              {permission === "denied" ? "Blocked in browser" : "Enable notifications"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={permission !== "granted"}
+              onClick={() => void sendTestNotification()}
+            >
+              Test
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-card" aria-labelledby="location-heading">
+        <h3 id="location-heading">Live location checks</h3>
+        <p>
+          If enabled, Departure asks the browser for location only during the
+          window after your leave time and before your arrival time. It compares
+          your current position to your home point to detect if you have not left.
+        </p>
+        <p>
+          The app stores only this on/off preference in local storage. Current
+          coordinates stay in memory for the active page session.
+        </p>
+        <div className="permission-actions">
+          <button
+            type="button"
+            className={settings.locationTrackingEnabled ? "secondary-button" : "primary-button"}
+            onClick={() =>
+              set("locationTrackingEnabled", !settings.locationTrackingEnabled)
+            }
+          >
+            {settings.locationTrackingEnabled
+              ? "Turn off live checks"
+              : "Enable live checks"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -118,4 +193,36 @@ function clampInt(raw: string, min: number, max: number): number {
   const n = Math.round(Number(raw));
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, n));
+}
+
+function currentPlaceContext(kind: PlaceUsageContext["kind"]): PlaceUsageContext {
+  const now = new Date();
+  return {
+    kind,
+    weekday: now.getDay() as PlaceUsageContext["weekday"],
+    hour: now.getHours(),
+  };
+}
+
+function permissionLabel(permission: AlarmNotificationPermission): string {
+  if (permission === "unsupported") return "not supported";
+  if (permission === "default") return "not requested";
+  return permission;
+}
+
+async function requestNotifications(
+  setPermission: (permission: AlarmNotificationPermission) => void,
+  setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void,
+) {
+  const result = await requestAlarmNotificationPermission();
+  setPermission(result);
+  setSetting("notificationsEnabled", result === "granted");
+}
+
+async function sendTestNotification() {
+  await showAlarmNotification({
+    title: "Departure notifications are on",
+    body: "Wake and leave reminders can now show through your browser.",
+    tag: "departure-test",
+  });
 }

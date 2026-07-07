@@ -57,6 +57,9 @@ export function TrafficSparkline({ leaveBy }: Props) {
   const leaveValue = congestionMultiplier(leaveBy);
   const leaveX = x(clampedLeave);
   const leaveY = y(leaveValue);
+  const ariaLabel = `Traffic estimate from ${START_HOUR} AM to ${END_HOUR} AM. Planned departure is ${formatClock(
+    leaveBy,
+  )}.`;
 
   const hourTicks = [6, 7, 8, 9, 10];
 
@@ -71,7 +74,7 @@ export function TrafficSparkline({ leaveBy }: Props) {
         className="sparkline-svg"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Congestion over the morning with your departure marked"
+        aria-label={ariaLabel}
       >
         <defs>
           <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">

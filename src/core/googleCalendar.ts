@@ -7,7 +7,8 @@ import type { Commitment, Place } from "./types";
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
 const GOOGLE_CALENDAR_EVENTS_URL =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+export const GOOGLE_CALENDAR_SCOPE =
+  "https://www.googleapis.com/auth/calendar.events.readonly";
 const GOOGLE_IMPORT_LIMIT = 50;
 
 interface GoogleTokenResponse {

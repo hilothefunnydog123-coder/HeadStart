@@ -39,7 +39,10 @@ export function useLiveDepartureStatus(
   settings: Settings,
   now: Date,
 ): LiveDepartureStatus {
-  const location = useLiveLocation(Boolean(settings.locationTrackingEnabled));
+  const shouldCheck =
+    Boolean(settings.locationTrackingEnabled && plan && settings.home) &&
+    Boolean(plan && shouldCheckLateDeparture(plan, now));
+  const location = useLiveLocation(shouldCheck);
   const trackedLocation = location.kind === "tracking" ? location : null;
   const [estimate, setEstimate] = useState<TravelEstimate | null>(null);
   const [estimateError, setEstimateError] = useState<string | null>(null);
@@ -115,12 +118,12 @@ export function useLiveDepartureStatus(
   }, [estimateKey]);
 
   if (!settings.locationTrackingEnabled) return { kind: "disabled" };
-  if (location.kind === "requesting") return { kind: "requesting" };
-  if (location.kind === "error") return { kind: "error", message: location.message };
-  if (!trackedLocation) return { kind: "requesting" };
   if (!plan || !settings.home || !shouldCheckLateDeparture(plan, now)) {
     return { kind: "not-due" };
   }
+  if (location.kind === "requesting") return { kind: "requesting" };
+  if (location.kind === "error") return { kind: "error", message: location.message };
+  if (!trackedLocation) return { kind: "requesting" };
 
   const distanceFromHomeMeters = distanceBetween(settings.home, trackedLocation.place);
   if (

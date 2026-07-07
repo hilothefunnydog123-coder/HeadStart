@@ -14,6 +14,22 @@ export interface Place {
   lng: number;
 }
 
+/** A saved place the user has actually chosen, used for local suggestions. */
+export interface PlaceHistoryEntry {
+  id: string;
+  place: Place;
+  useCount: number;
+  lastUsedAt: string;
+  contexts: PlaceUsageContext[];
+}
+
+export interface PlaceUsageContext {
+  kind: "home" | "destination";
+  weekday: Weekday;
+  hour: number;
+  travelMode?: TravelMode;
+}
+
 /** Calendar providers the app can import as first-commitment sources. */
 export type CalendarProviderId = "google" | "apple";
 
@@ -83,6 +99,8 @@ export interface Settings {
   apiKey?: string;
   /** Sound the alarm when the wake time is reached. */
   soundEnabled: boolean;
+  /** Show browser/PWA notifications for wake and leave moments. */
+  notificationsEnabled: boolean;
   /** Use browser location while the app is open to detect missed departures. */
   locationTrackingEnabled: boolean;
 }

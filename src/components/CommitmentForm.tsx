@@ -2,9 +2,11 @@ import { useState } from "react";
 import type {
   CalendarProviderId,
   Commitment,
+  PlaceUsageContext,
   TravelMode,
   Weekday,
 } from "../core/types";
+import type { PlaceSuggestion } from "../core/placeHistory";
 import {
   WEEKDAY_LABELS,
   minutesToTimeString,
@@ -17,6 +19,8 @@ import { Icon, MODE_ICON } from "./Icon";
 interface Props {
   commitments: Commitment[];
   onChange: (commitments: Commitment[]) => void;
+  placeSuggestions: PlaceSuggestion[];
+  onPlaceSelected: (place: Commitment["destination"], context: PlaceUsageContext) => void;
 }
 
 const MODES: { value: TravelMode; label: string }[] = [
@@ -27,28 +31,35 @@ const MODES: { value: TravelMode; label: string }[] = [
 ];
 
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
+type CommitmentStep = "when" | "where" | "travel";
 
 function blankCommitment(): Commitment {
   return {
     id: makeId("cmt"),
-    title: "New commitment",
+    title: "",
     destination: {
       id: makeId("place"),
-      label: "Financial District, SF",
-      lat: 37.7946,
-      lng: -122.3999,
+      label: "Choose a destination",
+      lat: 0,
+      lng: 0,
     },
     travelMode: "drive",
     arriveByMinutes: 9 * 60,
     days: [1, 2, 3, 4, 5],
-    enabled: true,
+    enabled: false,
   };
 }
 
-export function CommitmentForm({ commitments, onChange }: Props) {
+export function CommitmentForm({
+  commitments,
+  onChange,
+  placeSuggestions,
+  onPlaceSelected,
+}: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(
     commitments[0]?.id ?? null,
   );
+  const [stepById, setStepById] = useState<Record<string, CommitmentStep>>({});
 
   const update = (id: string, patch: Partial<Commitment>) =>
     onChange(commitments.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -60,6 +71,7 @@ export function CommitmentForm({ commitments, onChange }: Props) {
     const c = blankCommitment();
     onChange([...commitments, c]);
     setExpandedId(c.id);
+    setStepById((steps) => ({ ...steps, [c.id]: "when" }));
   };
 
   const toggleDay = (c: Commitment, day: Weekday) => {
@@ -75,10 +87,15 @@ export function CommitmentForm({ commitments, onChange }: Props) {
   ) => {
     update(c.id, {
       destination,
+      enabled: true,
       source: c.source
         ? { ...c.source, needsLocationReview: false }
         : c.source,
     });
+  };
+
+  const setStep = (id: string, step: CommitmentStep) => {
+    setStepById((steps) => ({ ...steps, [id]: step }));
   };
 
   return (
@@ -89,12 +106,16 @@ export function CommitmentForm({ commitments, onChange }: Props) {
 
       {commitments.map((c) => {
         const open = expandedId === c.id;
+        const step = stepById[c.id] ?? "when";
         return (
           <div key={c.id} className={`commitment-row ${c.enabled ? "" : "disabled"}`}>
             <div className="commitment-head">
               <label className="switch" title={c.enabled ? "Enabled" : "Disabled"}>
                 <input
                   type="checkbox"
+                  aria-label={`${c.enabled ? "Disable" : "Enable"} ${
+                    c.title || "draft commitment"
+                  }`}
                   checked={c.enabled}
                   onChange={(e) => update(c.id, { enabled: e.target.checked })}
                 />
@@ -109,12 +130,15 @@ export function CommitmentForm({ commitments, onChange }: Props) {
                 onClick={() => setExpandedId(open ? null : c.id)}
                 aria-expanded={open}
               >
-                <strong>{c.title || "Untitled"}</strong>
+                <strong>{c.title || "New commitment"}</strong>
                 <span className="muted">
+                  {c.enabled ? "" : "Draft · "}
                   {minutesToTimeString(c.arriveByMinutes)} ·{" "}
-                  {c.days.length
-                    ? c.days.map((d) => WEEKDAY_LABELS[d]).join(" ")
-                    : c.oneOffDate ?? "one-off"}
+                  {c.destination.label === "Choose a destination"
+                    ? "add destination"
+                    : c.days.length
+                      ? c.days.map((d) => WEEKDAY_LABELS[d]).join(" ")
+                      : c.oneOffDate ?? "one-off"}
                 </span>
                 {c.source?.kind === "calendar" && (
                   <span
@@ -145,64 +169,111 @@ export function CommitmentForm({ commitments, onChange }: Props) {
 
             {open && (
               <div className="commitment-body">
-                <div className="field-grid">
-                  <label className="field">
-                    <span>Title</span>
-                    <input
-                      type="text"
-                      value={c.title}
-                      onChange={(e) => update(c.id, { title: e.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Arrive by</span>
-                    <input
-                      type="time"
-                      value={minutesToTimeString(c.arriveByMinutes)}
-                      onChange={(e) => {
-                        const mins = parseTimeToMinutes(e.target.value);
-                        if (mins != null) update(c.id, { arriveByMinutes: mins });
-                      }}
-                    />
-                  </label>
-                </div>
-
-                <div className="field">
-                  <span className="field-label">Travel mode</span>
-                  <div className="segmented" role="group" aria-label="Travel mode">
-                    {MODES.map((m) => (
-                      <button
-                        key={m.value}
-                        type="button"
-                        className={`segment ${c.travelMode === m.value ? "on" : ""}`}
-                        onClick={() => update(c.id, { travelMode: m.value })}
-                        aria-pressed={c.travelMode === m.value}
-                      >
-                        <Icon name={MODE_ICON[m.value] ?? "pin"} size={18} />
-                        <span>{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="days-row" role="group" aria-label="Repeat days">
-                  {ALL_DAYS.map((d) => (
+                <div className="commitment-stepper" role="tablist" aria-label="Commitment steps">
+                  {COMMITMENT_STEPS.map((item) => (
                     <button
-                      key={d}
+                      key={item.id}
                       type="button"
-                      className={`day-toggle ${c.days.includes(d) ? "on" : ""}`}
-                      onClick={() => toggleDay(c, d)}
+                      role="tab"
+                      aria-selected={step === item.id}
+                      className={`step-tab ${step === item.id ? "step-tab-active" : ""}`}
+                      onClick={() => setStep(c.id, item.id)}
                     >
-                      {WEEKDAY_LABELS[d]}
+                      <span>{item.index}</span>
+                      {item.label}
                     </button>
                   ))}
                 </div>
 
-                <PlacePicker
-                  label="Destination"
-                  value={c.destination}
-                  onChange={(destination) => updateDestination(c, destination)}
-                />
+                {step === "when" && (
+                  <div className="step-panel">
+                    <div className="field-grid">
+                      <label className="field">
+                        <span>What is it?</span>
+                        <input
+                          type="text"
+                          value={c.title}
+                          placeholder="Class, practice, meeting..."
+                          onChange={(e) => update(c.id, { title: e.target.value })}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Arrive by</span>
+                        <input
+                          type="time"
+                          value={minutesToTimeString(c.arriveByMinutes)}
+                          onChange={(e) => {
+                            const mins = parseTimeToMinutes(e.target.value);
+                            if (mins != null) update(c.id, { arriveByMinutes: mins });
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <StepActions onNext={() => setStep(c.id, "where")} />
+                  </div>
+                )}
+
+                {step === "where" && (
+                  <div className="step-panel">
+                    <PlacePicker
+                      label="Destination"
+                      value={
+                        c.destination.label === "Choose a destination"
+                          ? null
+                          : c.destination
+                      }
+                      suggestions={placeSuggestions}
+                      onChange={(destination) => updateDestination(c, destination)}
+                      onPlaceSelected={(place) =>
+                        onPlaceSelected(place, currentPlaceContext(c))
+                      }
+                    />
+                    <StepActions
+                      onBack={() => setStep(c.id, "when")}
+                      onNext={() => setStep(c.id, "travel")}
+                    />
+                  </div>
+                )}
+
+                {step === "travel" && (
+                  <div className="step-panel">
+                    <div className="field">
+                      <span className="field-label">Travel mode</span>
+                      <div className="segmented" role="group" aria-label="Travel mode">
+                        {MODES.map((m) => (
+                          <button
+                            key={m.value}
+                            type="button"
+                            className={`segment ${c.travelMode === m.value ? "on" : ""}`}
+                            onClick={() => update(c.id, { travelMode: m.value })}
+                            aria-pressed={c.travelMode === m.value}
+                          >
+                            <Icon name={MODE_ICON[m.value] ?? "pin"} size={18} />
+                            <span>{m.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="field">
+                      <span className="field-label">Repeats</span>
+                      <div className="days-row" role="group" aria-label="Repeat days">
+                        {ALL_DAYS.map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            className={`day-toggle ${c.days.includes(d) ? "on" : ""}`}
+                            onClick={() => toggleDay(c, d)}
+                            aria-pressed={c.days.includes(d)}
+                          >
+                            {WEEKDAY_LABELS[d]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <StepActions onBack={() => setStep(c.id, "where")} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -215,6 +286,49 @@ export function CommitmentForm({ commitments, onChange }: Props) {
       </button>
     </div>
   );
+}
+
+const COMMITMENT_STEPS: {
+  id: CommitmentStep;
+  label: string;
+  index: string;
+}[] = [
+  { id: "when", label: "What & when", index: "1" },
+  { id: "where", label: "Where", index: "2" },
+  { id: "travel", label: "How often", index: "3" },
+];
+
+function StepActions({
+  onBack,
+  onNext,
+}: {
+  onBack?: () => void;
+  onNext?: () => void;
+}) {
+  return (
+    <div className="step-actions">
+      {onBack && (
+        <button type="button" className="secondary-button" onClick={onBack}>
+          Back
+        </button>
+      )}
+      {onNext && (
+        <button type="button" className="primary-button" onClick={onNext}>
+          Next
+        </button>
+      )}
+    </div>
+  );
+}
+
+function currentPlaceContext(commitment: Commitment): PlaceUsageContext {
+  const now = new Date();
+  return {
+    kind: "destination",
+    weekday: now.getDay() as Weekday,
+    hour: now.getHours(),
+    travelMode: commitment.travelMode,
+  };
 }
 
 function providerLabel(provider: CalendarProviderId): string {

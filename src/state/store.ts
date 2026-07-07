@@ -3,13 +3,16 @@ import type {
   CalendarProviderId,
   Commitment,
   Place,
+  PlaceHistoryEntry,
   Settings,
 } from "../core/types";
+import { normalizePlaceHistory } from "../core/placeHistory";
 
 export interface AppState {
   settings: Settings;
   commitments: Commitment[];
   calendarConnections: CalendarConnection[];
+  placeHistory: PlaceHistoryEntry[];
 }
 
 const STORAGE_KEY = "smart-departure-alarm/v1";
@@ -42,6 +45,7 @@ export function defaultState(): AppState {
       trafficProvider: "simulated",
       apiKey: "",
       soundEnabled: true,
+      notificationsEnabled: false,
       locationTrackingEnabled: false,
     },
     commitments: [
@@ -56,6 +60,7 @@ export function defaultState(): AppState {
       },
     ],
     calendarConnections: defaultCalendarConnections(),
+    placeHistory: [],
   };
 }
 
@@ -76,6 +81,7 @@ export function loadState(): AppState {
         ? parsed.commitments
         : base.commitments,
       calendarConnections: normalizeCalendarConnections(parsed.calendarConnections),
+      placeHistory: normalizePlaceHistory(parsed.placeHistory),
     };
   } catch {
     return defaultState();

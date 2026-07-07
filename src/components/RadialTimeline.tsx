@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { DeparturePlan } from "../core/types";
+import { formatClock } from "../core/time";
 
 interface Props {
   plan: DeparturePlan;
@@ -42,6 +43,11 @@ export function RadialTimeline({ plan, now, children }: Props) {
   const nowPt = pointOnRing(progress);
   const leavePt = pointOnRing(leaveFrac);
   const showNow = now.getTime() >= start && now.getTime() <= end;
+  const ariaLabel = `Morning timeline. Wake at ${formatClock(
+    plan.wakeBy,
+  )}, leave at ${formatClock(plan.leaveBy)}, arrive at ${formatClock(
+    plan.arriveBy,
+  )}.`;
 
   return (
     <div className="radial" style={{ width: SIZE, height: SIZE }}>
@@ -51,7 +57,7 @@ export function RadialTimeline({ plan, now, children }: Props) {
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="radial-svg"
         role="img"
-        aria-label="Morning progress dial"
+        aria-label={ariaLabel}
       >
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">

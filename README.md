@@ -62,6 +62,7 @@ implements `estimate()` and calls `registerProvider()`.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
 - 📍 **Home / destination** via place search, device geolocation, or advanced coordinates.
 - 🔐 **Private Google Calendar sync** via read-only OAuth; no public iCal feed required.
+- 🔔 **Browser/PWA notifications** for wake and leave reminders when permission is granted.
 - 🟡 **Missed-departure alerts** when live location shows you're still at home after leave time.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
 - 💾 **Local-first** — everything persists in `localStorage`; no account, no server.
@@ -100,8 +101,25 @@ primary calendar. Users do not need to publish their calendar or paste an iCal
 URL.
 
 For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
-ID whose authorized JavaScript origins include your app URL. For local testing,
-the connector also accepts a client ID directly in the Commitments tab.
+ID whose authorized JavaScript origins include your app URL. The production UI
+does not ask users to paste OAuth client IDs.
+
+### Using Apple Calendar
+
+Apple Calendar does not provide the same web OAuth event API as Google Calendar.
+Departure currently supports private `.ics` file import for Apple Calendar. A
+future always-connected Apple flow should use a backend CalDAV integration or a
+calendar aggregation provider.
+
+### Notifications and live location
+
+Departure can request browser notifications from Settings and show wake/leave
+reminders through the browser or installed PWA where supported. Web notification
+delivery still depends on browser and operating-system rules.
+
+Live missed-departure checks use browser geolocation only after the planned leave
+time and before the arrival time. The app stores the on/off preference locally;
+current coordinates are kept in memory for the active page session.
 
 ### Place search
 

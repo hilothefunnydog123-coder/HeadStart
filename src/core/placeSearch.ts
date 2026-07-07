@@ -5,6 +5,9 @@ const DEFAULT_LIMIT = 5;
 
 export interface PlaceSearchResult extends Place {
   source: "openstreetmap";
+  primaryLabel: string;
+  secondaryLabel?: string;
+  providerLabel: string;
   category?: string;
   type?: string;
 }
@@ -41,9 +44,9 @@ export async function searchPlaces(
   const payload = (await response.json()) as NominatimResult[];
   if (!Array.isArray(payload)) return [];
 
-  return payload
+  return dedupePlaces(payload
     .map((result) => placeFromNominatimResult(result))
-    .filter((place): place is PlaceSearchResult => place !== null);
+    .filter((place): place is PlaceSearchResult => place !== null));
 }
 
 export function placeSearchUrl(query: string, limit = DEFAULT_LIMIT): string {
@@ -70,15 +73,38 @@ export function placeFromNominatimResult(
       ? `${result.osm_type}-${result.osm_id}`
       : String(result.place_id ?? `${lat},${lng}`);
 
+  const label = placeLabel(result);
+  const secondaryLabel = placeSecondaryLabel(result);
+
   return {
     id: `osm-${externalId}`,
-    label: placeLabel(result),
+    label: secondaryLabel ? `${label}, ${secondaryLabel}` : label,
     lat,
     lng,
     source: "openstreetmap",
+    primaryLabel: label,
+    secondaryLabel,
+    providerLabel: providerLabel(result),
     category: result.category,
     type: result.type,
   };
+}
+
+export function dedupePlaces(results: PlaceSearchResult[]): PlaceSearchResult[] {
+  const seen = new Set<string>();
+  const deduped: PlaceSearchResult[] = [];
+  for (const result of results) {
+    const key = [
+      normalizeText(result.primaryLabel),
+      normalizeText(result.secondaryLabel ?? ""),
+      result.lat.toFixed(4),
+      result.lng.toFixed(4),
+    ].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(result);
+  }
+  return deduped;
 }
 
 function placeLabel(result: NominatimResult): string {
@@ -93,20 +119,33 @@ function placeLabel(result: NominatimResult): string {
     address.house_number ||
     result.display_name?.split(",")[0]?.trim();
 
-  const locality = [
+  return primary || result.display_name?.split(",")[0]?.trim() || "Search result";
+}
+
+function placeSecondaryLabel(result: NominatimResult): string | undefined {
+  const address = result.address ?? {};
+  const parts = [
     address.road,
     address.suburb || address.neighbourhood,
     address.city || address.town || address.village,
     address.state,
   ]
     .filter(Boolean)
-    .filter((part, index, parts) => parts.indexOf(part) === index)
-    .slice(0, 3)
-    .join(", ");
+    .filter((part, index, all) => all.indexOf(part) === index)
+    .slice(0, 3);
+  return parts.length ? parts.join(", ") : undefined;
+}
 
-  if (primary && locality && !locality.startsWith(primary)) {
-    return `${primary}, ${locality}`;
-  }
+function providerLabel(result: NominatimResult): string {
+  const raw = result.type || result.category;
+  if (!raw) return "OpenStreetMap";
+  return `${titleCase(raw.replace(/_/g, " "))} · OpenStreetMap`;
+}
 
-  return primary || result.display_name || "Search result";
+function normalizeText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function titleCase(value: string): string {
+  return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }

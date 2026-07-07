@@ -39,6 +39,7 @@ const settings: Settings = {
   trafficProvider: "simulated",
   apiKey: "",
   soundEnabled: false,
+  notificationsEnabled: false,
   locationTrackingEnabled: true,
 };
 

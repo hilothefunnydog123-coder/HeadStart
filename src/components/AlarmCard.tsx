@@ -180,8 +180,11 @@ function LiveDeparturePanel({
       <div className="departure-alert">
         <Icon name="pin" size={19} />
         <div>
-          <strong>Live location alerts off</strong>
-          <span>Enable them to detect missed leave times.</span>
+          <strong>Live missed-departure checks are off</strong>
+          <span>
+            Enable browser location checks during your leave window to update ETA
+            if you are still at home.
+          </span>
         </div>
         <button
           type="button"

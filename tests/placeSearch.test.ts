@@ -39,12 +39,15 @@ describe("place search", () => {
       lat: 37.7955,
       lng: -122.3937,
       source: "openstreetmap",
+      primaryLabel: "Ferry Building",
+      secondaryLabel: "The Embarcadero, San Francisco, California",
+      providerLabel: "Attraction · OpenStreetMap",
       category: "tourism",
       type: "attraction",
     });
   });
 
-  it("uses the provided fetcher and drops malformed results", async () => {
+  it("uses the provided fetcher and drops malformed or duplicate results", async () => {
     const fetcher = async () =>
       new Response(
         JSON.stringify([
@@ -53,6 +56,12 @@ describe("place search", () => {
             display_name: "Valid Place",
             lat: "37",
             lon: "-122",
+          },
+          {
+            place_id: 3,
+            display_name: "Valid Place",
+            lat: "37.00001",
+            lon: "-122.00001",
           },
           {
             place_id: 2,

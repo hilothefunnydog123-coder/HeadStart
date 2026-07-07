@@ -1,4 +1,11 @@
-import { type FormEvent, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useId,
+  useState,
+} from "react";
+import type { PlaceSuggestion } from "../core/placeHistory";
 import { searchPlaces, type PlaceSearchResult } from "../core/placeSearch";
 import type { Place } from "../core/types";
 import { makeId } from "../state/store";
@@ -8,14 +15,25 @@ interface Props {
   label: string;
   value: Place | null;
   onChange: (place: Place) => void;
+  suggestions?: PlaceSuggestion[];
+  onPlaceSelected?: (place: Place) => void;
 }
 
-export function PlacePicker({ label, value, onChange }: Props) {
+export function PlacePicker({
+  label,
+  value,
+  onChange,
+  suggestions = [],
+  onPlaceSelected,
+}: Props) {
+  const inputId = useId();
+  const resultsId = useId();
   const [lat, setLat] = useState(value ? String(value.lat) : "");
   const [lng, setLng] = useState(value ? String(value.lng) : "");
   const [name, setName] = useState(value?.label ?? "");
   const [query, setQuery] = useState(value?.label ?? "");
   const [results, setResults] = useState<PlaceSearchResult[]>([]);
+  const [activeResultIndex, setActiveResultIndex] = useState(-1);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -34,9 +52,11 @@ export function PlacePicker({ label, value, onChange }: Props) {
     setLat(String(Number(selected.lat.toFixed(6))));
     setLng(String(Number(selected.lng.toFixed(6))));
     setResults([]);
+    setActiveResultIndex(-1);
     setSearchError(null);
     setGeoError(null);
     onChange(selected);
+    onPlaceSelected?.(selected);
   };
 
   const runSearch = async (event: FormEvent) => {
@@ -54,6 +74,7 @@ export function PlacePicker({ label, value, onChange }: Props) {
     try {
       const matches = await searchPlaces(trimmed);
       setResults(matches);
+      setActiveResultIndex(matches.length > 0 ? 0 : -1);
       if (matches.length === 0) {
         setSearchError("No matching places found.");
       }
@@ -68,12 +89,44 @@ export function PlacePicker({ label, value, onChange }: Props) {
     const latNum = Number(lat);
     const lngNum = Number(lng);
     if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
-    onChange({
+    const place = {
       id: value?.id ?? makeId("place"),
       label: name.trim() || "Custom location",
       lat: latNum,
       lng: lngNum,
-    });
+    };
+    onChange(place);
+    onPlaceSelected?.(place);
+  };
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setResults([]);
+      setActiveResultIndex(-1);
+      return;
+    }
+
+    if (results.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveResultIndex((index) => (index + 1) % results.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveResultIndex((index) =>
+        index <= 0 ? results.length - 1 : index - 1,
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && activeResultIndex >= 0) {
+      event.preventDefault();
+      const result = results[activeResultIndex];
+      if (result) selectPlace(result);
+    }
   };
 
   const useMyLocation = () => {
@@ -107,15 +160,24 @@ export function PlacePicker({ label, value, onChange }: Props) {
           <div className="search-control">
             <Icon name="search" size={17} />
             <input
+              id={inputId}
               type="search"
               value={query}
               placeholder="Search a building or address"
               onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              aria-controls={results.length > 0 ? resultsId : undefined}
+              aria-activedescendant={
+                activeResultIndex >= 0 ? `${resultsId}-${activeResultIndex}` : undefined
+              }
             />
             <button type="submit" className="search-button" disabled={isSearching}>
               {isSearching ? "Searching" : "Search"}
             </button>
           </div>
+          <small className="muted">
+            Search queries are sent to OpenStreetMap Nominatim.
+          </small>
         </label>
       </form>
 
@@ -131,17 +193,51 @@ export function PlacePicker({ label, value, onChange }: Props) {
         </div>
       )}
 
+      {suggestions.length > 0 && (
+        <div className="learned-suggestions" aria-label="Learned place suggestions">
+          <div className="suggestion-heading">Suggestions from your history</div>
+          <div className="suggestion-row">
+            {suggestions.map((suggestion) => (
+              <button
+                key={`${suggestion.reason}-${suggestion.place.id}`}
+                type="button"
+                className="suggestion-chip"
+                onClick={() => selectPlace(suggestion.place)}
+              >
+                <span>{suggestion.place.label}</span>
+                <small>{suggestion.label}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {results.length > 0 && (
-        <div className="place-results" role="listbox" aria-label="Search results">
-          {results.map((result) => (
+        <div
+          id={resultsId}
+          className="place-results"
+          role="listbox"
+          aria-label="Search results"
+        >
+          {results.map((result, index) => (
             <button
               key={result.id}
+              id={`${resultsId}-${index}`}
               type="button"
-              className="place-result"
+              role="option"
+              aria-selected={activeResultIndex === index}
+              className={`place-result ${
+                activeResultIndex === index ? "place-result-active" : ""
+              }`}
               onClick={() => selectPlace(result)}
+              onMouseEnter={() => setActiveResultIndex(index)}
             >
               <Icon name="pin" size={16} />
-              <span>{result.label}</span>
+              <span>
+                <strong>{result.primaryLabel}</strong>
+                {result.secondaryLabel && <small>{result.secondaryLabel}</small>}
+                <em>{result.providerLabel}</em>
+              </span>
             </button>
           ))}
         </div>

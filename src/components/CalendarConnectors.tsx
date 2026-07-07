@@ -18,7 +18,6 @@ interface ImportMetadata {
   sourceLabel: string;
   sourceUrl?: string;
   authMode?: CalendarConnection["authMode"];
-  clientId?: string;
 }
 
 interface Props {
@@ -37,16 +36,21 @@ const PROVIDERS: {
   id: CalendarProviderId;
   name: string;
   mark: string;
+  description: string;
 }[] = [
   {
     id: "google",
     name: "Google Calendar",
     mark: "G",
+    description:
+      "Connect privately with read-only event access. Imported events stay editable.",
   },
   {
     id: "apple",
-    name: "Apple Calendar",
+    name: "Apple Calendar file",
     mark: "A",
+    description:
+      "Apple Calendar does not offer Google-style web calendar sign-in here. Import a private .ics file, or use a future CalDAV/backend connector.",
   },
 ];
 
@@ -59,9 +63,6 @@ export function CalendarConnectors({
   onDisconnect,
   onError,
 }: Props) {
-  const [googleClientId, setGoogleClientId] = useState(
-    connectionFor(connections, "google").clientId ?? ENV_GOOGLE_CLIENT_ID,
-  );
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [busyProvider, setBusyProvider] = useState<CalendarProviderId | null>(null);
   const fileInputs = useRef<Record<CalendarProviderId, HTMLInputElement | null>>({
@@ -70,7 +71,9 @@ export function CalendarConnectors({
   });
 
   useEffect(() => {
-    void loadGoogleIdentityScript().catch(() => undefined);
+    if (ENV_GOOGLE_CLIENT_ID) {
+      void loadGoogleIdentityScript().catch(() => undefined);
+    }
   }, []);
 
   const importText = (
@@ -86,15 +89,14 @@ export function CalendarConnectors({
   };
 
   const importFromGoogle = async () => {
-    const clientId = (ENV_GOOGLE_CLIENT_ID || googleClientId).trim();
-    if (!clientId) {
-      onError("google", "Google sign-in needs an OAuth client ID.");
+    if (!ENV_GOOGLE_CLIENT_ID) {
+      onError("google", "Google Calendar is not configured for this build.");
       return;
     }
 
     setBusyProvider("google");
     try {
-      const token = await requestGoogleCalendarAccessToken(clientId);
+      const token = await requestGoogleCalendarAccessToken(ENV_GOOGLE_CLIENT_ID);
       setGoogleAccessToken(token);
       const imported = await importGoogleCalendarCommitments(
         token,
@@ -106,7 +108,6 @@ export function CalendarConnectors({
       onImport("google", imported, {
         sourceLabel: "Google Calendar",
         authMode: "google-oauth",
-        clientId: ENV_GOOGLE_CLIENT_ID ? undefined : clientId,
       });
     } catch (error) {
       onError("google", errorMessage(error, "Couldn't connect Google Calendar."));
@@ -153,7 +154,7 @@ export function CalendarConnectors({
           const connection = connectionFor(connections, provider.id);
           const busy = busyProvider === provider.id;
           const isGoogle = provider.id === "google";
-          const googleReady = Boolean((ENV_GOOGLE_CLIENT_ID || googleClientId).trim());
+          const googleReady = Boolean(ENV_GOOGLE_CLIENT_ID);
 
           return (
             <article key={provider.id} className="connector-card">
@@ -171,17 +172,7 @@ export function CalendarConnectors({
                 </div>
               </div>
 
-              {isGoogle && !ENV_GOOGLE_CLIENT_ID && (
-                <label className="field connector-client-field">
-                  <span>OAuth client ID</span>
-                  <input
-                    type="text"
-                    value={googleClientId}
-                    placeholder="1234567890-abc.apps.googleusercontent.com"
-                    onChange={(event) => setGoogleClientId(event.target.value)}
-                  />
-                </label>
-              )}
+              <p className="connector-description">{provider.description}</p>
 
               <div className="connector-actions">
                 {isGoogle && (
@@ -194,8 +185,8 @@ export function CalendarConnectors({
                     {busy
                       ? "Syncing..."
                       : connection.authMode === "google-oauth"
-                        ? "Sync with Google"
-                        : "Sign in with Google"}
+                        ? "Sync Google"
+                        : "Connect Google"}
                   </button>
                 )}
                 <button
@@ -204,7 +195,7 @@ export function CalendarConnectors({
                   disabled={busy}
                   onClick={() => fileInputs.current[provider.id]?.click()}
                 >
-                  Upload .ics
+                  Import .ics
                 </button>
                 {connection.connected && (
                   <button
@@ -240,7 +231,7 @@ export function CalendarConnectors({
               )}
               {isGoogle && !googleReady && (
                 <p className="field-error connector-error">
-                  Configure Google sign-in before connecting.
+                  Google Calendar sign-in is not enabled for this build yet.
                 </p>
               )}
               {connection.error && (

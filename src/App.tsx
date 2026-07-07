@@ -18,8 +18,14 @@ import { useNow } from "./hooks/useNow";
 import { usePlan } from "./hooks/usePlan";
 import { useAlarmSound } from "./hooks/useAlarmSound";
 import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
+import { useAlarmNotifications } from "./hooks/useAlarmNotifications";
 import { loadState, saveState, type AppState } from "./state/store";
 import { Icon } from "./components/Icon";
+import {
+  rememberPlaceUsage,
+  suggestPlaces,
+} from "./core/placeHistory";
+import type { PlaceUsageContext, Weekday } from "./core/types";
 
 type Tab = "alarm" | "commitments" | "settings";
 
@@ -49,6 +55,27 @@ export default function App() {
 
   useAlarmSound(livePlan?.phase ?? null, state.settings.soundEnabled);
   const liveDepartureStatus = useLiveDepartureStatus(livePlan, state.settings, now);
+  useAlarmNotifications(livePlan, state.settings.notificationsEnabled, now);
+
+  const nowPlaceContext = {
+    weekday: now.getDay() as Weekday,
+    hour: now.getHours(),
+  };
+  const destinationSuggestions = suggestPlaces(state.placeHistory, {
+    ...nowPlaceContext,
+    kind: "destination",
+  });
+  const homeSuggestions = suggestPlaces(state.placeHistory, {
+    ...nowPlaceContext,
+    kind: "home",
+  });
+
+  const rememberPlace = (place: Place, context: PlaceUsageContext) => {
+    setState((s) => ({
+      ...s,
+      placeHistory: rememberPlaceUsage(s.placeHistory, place, context),
+    }));
+  };
 
   const importCalendarCommitments = (
     provider: CalendarProviderId,
@@ -114,10 +141,14 @@ export default function App() {
             <p className="brand-tag">Wake up exactly when you need to.</p>
           </div>
         </div>
-        <nav className="tabs" aria-label="Sections">
+        <nav className="tabs" aria-label="Sections" role="tablist">
           {(["alarm", "commitments", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
+              id={`${t}-tab`}
+              role="tab"
+              aria-selected={tab === t}
+              aria-controls={`${t}-panel`}
               className={`tab ${tab === t ? "tab-active" : ""}`}
               onClick={() => setTab(t)}
             >
@@ -127,7 +158,12 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="app-main">
+      <main
+        className="app-main"
+        id={`${tab}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${tab}-tab`}
+      >
         {tab === "alarm" && (
           <>
             {planResult.status === "loading" && (
@@ -179,6 +215,8 @@ export default function App() {
             />
             <CommitmentForm
               commitments={state.commitments}
+              placeSuggestions={destinationSuggestions}
+              onPlaceSelected={(place, context) => rememberPlace(place, context)}
               onChange={(commitments) =>
                 setState((s) => ({ ...s, commitments }))
               }
@@ -191,6 +229,8 @@ export default function App() {
             <h2 className="panel-title">Settings</h2>
             <SettingsPanel
               settings={state.settings}
+              placeSuggestions={homeSuggestions}
+              onPlaceSelected={(place, context) => rememberPlace(place, context)}
               onChange={(settings) => setState((s) => ({ ...s, settings }))}
             />
           </div>
