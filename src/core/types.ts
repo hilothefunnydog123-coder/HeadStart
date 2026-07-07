@@ -14,6 +14,20 @@ export interface Place {
   lng: number;
 }
 
+/** Calendar providers the app can import as first-commitment sources. */
+export type CalendarProviderId = "google" | "apple";
+
+/** Calendar import status persisted with the rest of the local app state. */
+export interface CalendarConnection {
+  provider: CalendarProviderId;
+  connected: boolean;
+  eventCount: number;
+  lastSyncedAt?: string;
+  sourceLabel?: string;
+  sourceUrl?: string;
+  error?: string;
+}
+
 /** How the user intends to travel to their commitment. */
 export type TravelMode = "drive" | "transit" | "walk" | "cycle";
 
@@ -42,6 +56,14 @@ export interface Commitment {
   /** Optional per-commitment override of the global prep time, in minutes. */
   prepMinutesOverride?: number;
   enabled: boolean;
+  source?: {
+    kind: "calendar";
+    provider: CalendarProviderId;
+    externalId: string;
+    importedAt: string;
+    originalLocation?: string;
+    needsLocationReview?: boolean;
+  };
 }
 
 /** Global user preferences shared across commitments. */

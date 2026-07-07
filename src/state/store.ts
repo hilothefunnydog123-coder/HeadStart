@@ -1,8 +1,15 @@
-import type { Commitment, Place, Settings } from "../core/types";
+import type {
+  CalendarConnection,
+  CalendarProviderId,
+  Commitment,
+  Place,
+  Settings,
+} from "../core/types";
 
 export interface AppState {
   settings: Settings;
   commitments: Commitment[];
+  calendarConnections: CalendarConnection[];
 }
 
 const STORAGE_KEY = "smart-departure-alarm/v1";
@@ -22,6 +29,8 @@ const DEMO_OFFICE: Place = {
   lat: 37.7946,
   lng: -122.3999,
 };
+
+const CALENDAR_PROVIDERS: CalendarProviderId[] = ["google", "apple"];
 
 export function defaultState(): AppState {
   return {
@@ -45,6 +54,7 @@ export function defaultState(): AppState {
         enabled: true,
       },
     ],
+    calendarConnections: defaultCalendarConnections(),
   };
 }
 
@@ -64,6 +74,7 @@ export function loadState(): AppState {
       commitments: Array.isArray(parsed.commitments)
         ? parsed.commitments
         : base.commitments,
+      calendarConnections: normalizeCalendarConnections(parsed.calendarConnections),
     };
   } catch {
     return defaultState();
@@ -83,4 +94,30 @@ export function saveState(state: AppState): void {
 export function makeId(prefix = "id"): string {
   const rand = Math.floor((Date.now() ^ (Math.random() * 1e9)) & 0xffffff);
   return `${prefix}-${rand.toString(36)}`;
+}
+
+export function defaultCalendarConnections(): CalendarConnection[] {
+  return CALENDAR_PROVIDERS.map((provider) => ({
+    provider,
+    connected: false,
+    eventCount: 0,
+  }));
+}
+
+function normalizeCalendarConnections(
+  value: Partial<CalendarConnection>[] | undefined,
+): CalendarConnection[] {
+  const incoming = Array.isArray(value) ? value : [];
+  return CALENDAR_PROVIDERS.map((provider) => {
+    const saved = incoming.find((connection) => connection.provider === provider);
+    return {
+      provider,
+      connected: Boolean(saved?.connected),
+      eventCount: Number.isFinite(saved?.eventCount) ? Number(saved?.eventCount) : 0,
+      lastSyncedAt: saved?.lastSyncedAt,
+      sourceLabel: saved?.sourceLabel,
+      sourceUrl: saved?.sourceUrl,
+      error: saved?.error,
+    };
+  });
 }

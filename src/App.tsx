@@ -1,14 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlarmCard } from "./components/AlarmCard";
+import { CalendarConnectors } from "./components/CalendarConnectors";
 import { CommitmentForm } from "./components/CommitmentForm";
 import { SettingsPanel } from "./components/SettingsPanel";
+import {
+  mergeCalendarCommitments,
+  removeCalendarCommitments,
+} from "./core/calendar";
 import { refreshPlanTiming } from "./core/departure";
+import type {
+  CalendarConnection,
+  CalendarProviderId,
+  Commitment,
+  Place,
+} from "./core/types";
 import { useNow } from "./hooks/useNow";
 import { usePlan } from "./hooks/usePlan";
 import { useAlarmSound } from "./hooks/useAlarmSound";
 import { loadState, saveState, type AppState } from "./state/store";
 
 type Tab = "alarm" | "commitments" | "settings";
+
+const CALENDAR_FALLBACK_DESTINATION: Place = {
+  id: "calendar-fallback-office",
+  label: "Office — Financial District",
+  lat: 37.7946,
+  lng: -122.3999,
+};
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
@@ -28,6 +46,49 @@ export default function App() {
   }, [planResult, now]);
 
   useAlarmSound(livePlan?.phase ?? null, state.settings.soundEnabled);
+
+  const importCalendarCommitments = (
+    provider: CalendarProviderId,
+    imported: Commitment[],
+    metadata: { sourceLabel: string; sourceUrl?: string },
+  ) => {
+    setState((s) => ({
+      ...s,
+      commitments: mergeCalendarCommitments(s.commitments, imported, provider),
+      calendarConnections: updateCalendarConnection(s.calendarConnections, provider, {
+        connected: true,
+        eventCount: imported.length,
+        lastSyncedAt: new Date().toISOString(),
+        sourceLabel: metadata.sourceLabel,
+        sourceUrl: metadata.sourceUrl,
+        error: undefined,
+      }),
+    }));
+  };
+
+  const disconnectCalendar = (provider: CalendarProviderId) => {
+    setState((s) => ({
+      ...s,
+      commitments: removeCalendarCommitments(s.commitments, provider),
+      calendarConnections: updateCalendarConnection(s.calendarConnections, provider, {
+        connected: false,
+        eventCount: 0,
+        lastSyncedAt: undefined,
+        sourceLabel: undefined,
+        sourceUrl: undefined,
+        error: undefined,
+      }),
+    }));
+  };
+
+  const setCalendarError = (provider: CalendarProviderId, message: string) => {
+    setState((s) => ({
+      ...s,
+      calendarConnections: updateCalendarConnection(s.calendarConnections, provider, {
+        error: message,
+      }),
+    }));
+  };
 
   return (
     <div className="app">
@@ -84,6 +145,13 @@ export default function App() {
             <p className="muted panel-lead">
               The alarm plans around whichever enabled commitment comes next.
             </p>
+            <CalendarConnectors
+              connections={state.calendarConnections}
+              fallbackDestination={CALENDAR_FALLBACK_DESTINATION}
+              onImport={importCalendarCommitments}
+              onDisconnect={disconnectCalendar}
+              onError={setCalendarError}
+            />
             <CommitmentForm
               commitments={state.commitments}
               onChange={(commitments) =>
@@ -114,6 +182,30 @@ export default function App() {
       </footer>
     </div>
   );
+}
+
+function updateCalendarConnection(
+  connections: CalendarConnection[],
+  provider: CalendarProviderId,
+  patch: Partial<CalendarConnection>,
+): CalendarConnection[] {
+  const seen = new Set<CalendarProviderId>();
+  const updated = connections.map((connection) => {
+    if (connection.provider !== provider) return connection;
+    seen.add(provider);
+    return { ...connection, ...patch, provider };
+  });
+
+  if (!seen.has(provider)) {
+    updated.push({
+      provider,
+      connected: false,
+      eventCount: 0,
+      ...patch,
+    });
+  }
+
+  return updated;
 }
 
 function EmptyState({

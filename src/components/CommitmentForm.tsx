@@ -1,5 +1,10 @@
 import { useState } from "react";
-import type { Commitment, TravelMode, Weekday } from "../core/types";
+import type {
+  CalendarProviderId,
+  Commitment,
+  TravelMode,
+  Weekday,
+} from "../core/types";
 import {
   WEEKDAY_LABELS,
   minutesToTimeString,
@@ -63,6 +68,18 @@ export function CommitmentForm({ commitments, onChange }: Props) {
     });
   };
 
+  const updateDestination = (
+    c: Commitment,
+    destination: Commitment["destination"],
+  ) => {
+    update(c.id, {
+      destination,
+      source: c.source
+        ? { ...c.source, needsLocationReview: false }
+        : c.source,
+    });
+  };
+
   return (
     <div className="commitments">
       {commitments.length === 0 && (
@@ -95,6 +112,16 @@ export function CommitmentForm({ commitments, onChange }: Props) {
                     ? c.days.map((d) => WEEKDAY_LABELS[d]).join(" ")
                     : c.oneOffDate ?? "one-off"}
                 </span>
+                {c.source?.kind === "calendar" && (
+                  <span
+                    className={`source-pill ${
+                      c.source.needsLocationReview ? "source-pill-warn" : ""
+                    }`}
+                  >
+                    {providerLabel(c.source.provider)}
+                    {c.source.needsLocationReview ? " · review location" : ""}
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -161,7 +188,7 @@ export function CommitmentForm({ commitments, onChange }: Props) {
                 <PlacePicker
                   label="Destination"
                   value={c.destination}
-                  onChange={(destination) => update(c.id, { destination })}
+                  onChange={(destination) => updateDestination(c, destination)}
                 />
               </div>
             )}
@@ -174,4 +201,8 @@ export function CommitmentForm({ commitments, onChange }: Props) {
       </button>
     </div>
   );
+}
+
+function providerLabel(provider: CalendarProviderId): string {
+  return provider === "google" ? "Google Calendar" : "Apple Calendar";
 }
