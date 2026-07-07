@@ -42,6 +42,7 @@ export function defaultState(): AppState {
       trafficProvider: "simulated",
       apiKey: "",
       soundEnabled: true,
+      locationTrackingEnabled: false,
     },
     commitments: [
       {

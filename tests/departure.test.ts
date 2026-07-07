@@ -30,6 +30,7 @@ const settings: Settings = {
   trafficProvider: "simulated",
   apiKey: "",
   soundEnabled: false,
+  locationTrackingEnabled: false,
 };
 
 // A fixed 30-minute drive so the math is exact and independent of the sim.

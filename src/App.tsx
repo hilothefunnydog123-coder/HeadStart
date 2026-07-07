@@ -17,6 +17,7 @@ import type {
 import { useNow } from "./hooks/useNow";
 import { usePlan } from "./hooks/usePlan";
 import { useAlarmSound } from "./hooks/useAlarmSound";
+import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
 import { loadState, saveState, type AppState } from "./state/store";
 import { Icon } from "./components/Icon";
 
@@ -47,6 +48,7 @@ export default function App() {
   }, [planResult, now]);
 
   useAlarmSound(livePlan?.phase ?? null, state.settings.soundEnabled);
+  const liveDepartureStatus = useLiveDepartureStatus(livePlan, state.settings, now);
 
   const importCalendarCommitments = (
     provider: CalendarProviderId,
@@ -144,7 +146,20 @@ export default function App() {
               />
             )}
             {planResult.status === "ready" && livePlan && (
-              <AlarmCard plan={livePlan} now={now} />
+              <AlarmCard
+                plan={livePlan}
+                now={now}
+                liveStatus={liveDepartureStatus}
+                onEnableLocationTracking={() =>
+                  setState((s) => ({
+                    ...s,
+                    settings: {
+                      ...s.settings,
+                      locationTrackingEnabled: true,
+                    },
+                  }))
+                }
+              />
             )}
           </>
         )}

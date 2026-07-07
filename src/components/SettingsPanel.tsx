@@ -101,6 +101,15 @@ export function SettingsPanel({ settings, onChange }: Props) {
         />
         <span>Play a sound when it's time to wake up</span>
       </label>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.locationTrackingEnabled}
+          onChange={(e) => set("locationTrackingEnabled", e.target.checked)}
+        />
+        <span>Use live location for missed-departure alerts</span>
+      </label>
     </div>
   );
 }

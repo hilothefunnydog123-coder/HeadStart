@@ -93,13 +93,14 @@ describe("parseCalendarIcs", () => {
 
 describe("googleCalendarEventsToCommitments", () => {
   it("imports Google Calendar API timed events without requiring a public feed", () => {
+    const start = new Date(2026, 6, 8, 9, 45, 0);
     const commitments = googleCalendarEventsToCommitments(
       [
         {
           id: "google-event-1",
           summary: "Private customer meeting",
           location: "37.8044,-122.2712",
-          start: { dateTime: "2026-07-08T09:45:00-07:00" },
+          start: { dateTime: start.toISOString() },
         },
       ],
       fallback,
@@ -108,7 +109,7 @@ describe("googleCalendarEventsToCommitments", () => {
 
     expect(commitments).toHaveLength(1);
     expect(commitments[0]?.title).toBe("Private customer meeting");
-    expect(commitments[0]?.arriveByMinutes).toBe(9 * 60 + 45);
+    expect(commitments[0]?.arriveByMinutes).toBe(start.getHours() * 60 + start.getMinutes());
     expect(commitments[0]?.oneOffDate).toBe("2026-07-08");
     expect(commitments[0]?.destination.lat).toBe(37.8044);
     expect(commitments[0]?.source?.externalId).toBe("google-event-1");

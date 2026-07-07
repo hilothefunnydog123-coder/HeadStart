@@ -83,6 +83,8 @@ export interface Settings {
   apiKey?: string;
   /** Sound the alarm when the wake time is reached. */
   soundEnabled: boolean;
+  /** Use browser location while the app is open to detect missed departures. */
+  locationTrackingEnabled: boolean;
 }
 
 /** A traffic-aware travel-time estimate for one leg. */
