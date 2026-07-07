@@ -9,39 +9,43 @@ export type PlanResult =
   | { status: "error"; message: string };
 
 /**
- * Computes the departure plan and keeps it fresh.
+ * Computes the departure plan and keeps it fresh against the supplied clock.
  *
- * Every `refreshMs` (default 60s) we re-run the traffic estimate so the plan
- * tracks changing congestion — the whole point of the app. On-screen countdowns
- * stay live every second by deriving from the returned `leaveBy`/`wakeBy`
- * instants against a ticking `now` in the component, so we don't refetch just to
- * update a clock.
+ * We re-run the traffic estimate whenever the inputs change or the clock rolls
+ * to a new minute — so the plan tracks changing congestion in real time, and
+ * follows a fast-forwarded clock during "Simulate morning". On-screen countdowns
+ * stay live sub-minute by deriving from the returned instants in the component.
  */
 export function usePlan(
   commitments: Commitment[],
   settings: Settings,
-  refreshMs = 60_000,
+  now: Date,
 ): PlanResult {
   const [result, setResult] = useState<PlanResult>({ status: "loading" });
-  const lastFetch = useRef(0);
 
-  // Serialize the inputs that should trigger a refetch. `now` is intentionally
-  // excluded — it changes every second and would thrash the provider.
   const inputsKey = JSON.stringify({ commitments, settings });
+  const minuteBucket = Math.floor(now.getTime() / 60_000);
+
+  // Keep the freshest `now` available to the async fetch without making it a
+  // dependency (which would refetch every render).
+  const nowRef = useRef(now);
+  nowRef.current = now;
 
   useEffect(() => {
     let cancelled = false;
-
-    async function run() {
+    (async () => {
       try {
-        const outcome = await planNextDeparture(commitments, settings, new Date());
+        const outcome = await planNextDeparture(
+          commitments,
+          settings,
+          nowRef.current,
+        );
         if (cancelled) return;
         if ("commitment" in outcome) {
           setResult({ status: "ready", plan: outcome });
         } else {
           setResult({ status: "empty", phase: outcome.phase });
         }
-        lastFetch.current = Date.now();
       } catch (err) {
         if (cancelled) return;
         setResult({
@@ -49,16 +53,12 @@ export function usePlan(
           message: err instanceof Error ? err.message : "Failed to plan route.",
         });
       }
-    }
-
-    run();
-    const id = window.setInterval(run, refreshMs);
+    })();
     return () => {
       cancelled = true;
-      window.clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputsKey, refreshMs]);
+  }, [inputsKey, minuteBucket]);
 
   return result;
 }

@@ -14,8 +14,19 @@ setting your alarm for the worst case "just in case."
 </p>
 
 <p align="center">
-  <em>A live progress dial counts down your morning, colour-coded by phase, while the
-  sparkline shows the whole rush-hour curve with your departure marked at the sweet spot.</em>
+  <em>A live progress dial counts down your morning on a sky that wakes up with you;
+  the Monte-Carlo model tells you how likely you are to actually make it.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-simulate.png" alt="Simulate-morning demo mode" width="300" />
+  &nbsp;
+  <img src="docs/screenshot-night.png" alt="Night sky" width="300" />
+</p>
+
+<p align="center">
+  <em>“Simulate morning” fast-forwards a virtual clock so the whole app — sky, dial,
+  phases, confidence, alarm — comes alive on demand.</em>
 </p>
 
 ---
@@ -56,17 +67,26 @@ implements `estimate()` and calls `registerProvider()`.
 ## Features
 
 - 🧠 **Traffic-aware wake time** that recomputes as congestion changes.
+- 🎯 **On-time confidence** — a Monte-Carlo model estimates the probability you'll
+  actually arrive on time and, if you're short, how many minutes earlier to leave.
+- 🌅 **A living sky** — an animated canvas backdrop that tracks the real time of day:
+  stars and a moon at night, a teal dawn glow, the sun arcing across morning.
+- ⏩ **Simulate morning** — a demo scrubber that fast-forwards a virtual clock (30–240×)
+  so the sky, dial, phases, confidence and alarm all animate on cue. Great for a pitch.
+- 🗣️ **Spoken briefing** — the Web Speech API reads your morning out loud (auto at wake).
+- ⚡ **Live re-plan alerts** — a toast the moment shifting traffic moves your departure.
 - ⭕ **Live progress dial** for the whole morning (wake → leave → arrive) with a moving "now" marker.
 - 📈 **Rush-hour sparkline** that plots congestion across the morning and marks your departure.
-- 📅 **Recurring & one-off commitments** — picks whichever comes next.
+- 📅 **Recurring, one-off & calendar-imported commitments** — picks whichever comes next.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
 - 📍 **Home / destination** via place search, device geolocation, or advanced coordinates.
 - 🔐 **Private Google Calendar sync** via read-only OAuth; no public iCal feed required.
 - 🔔 **Browser/PWA notifications** for wake and leave reminders when permission is granted.
 - 🟡 **Missed-departure alerts** when live location shows you're still at home after leave time.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
+- 📲 **Installable PWA** — add to home screen, works offline.
 - 💾 **Local-first** — everything persists in `localStorage`; no account, no server.
-- 🎨 Polished, responsive UI with automatic light/dark themes.
+- 🎨 Hand-crafted UI (Fraunces + Inter, custom line icons, film grain) with automatic light/dark themes.
 
 ## Getting started
 
@@ -142,23 +162,29 @@ src/
     geo.ts              haversine distance + road-detour factor
     time.ts             time parsing, next-occurrence, commitment selection
     departure.ts        the backwards timeline engine + phase resolution
+    confidence.ts       Monte-Carlo on-time probability + spoken briefing text
+    calendar.ts         iCal import → editable commitments
     traffic/
       provider.ts       TrafficProvider interface + registry
       simulated.ts      offline rush-hour model (default)
       google.ts         Google Routes API implementation
   state/store.ts        localStorage persistence + demo seed
-  hooks/                useNow, usePlan, useAlarmSound
-  components/           AlarmCard, TimelineBar, TrafficBadge, forms …
-tests/                  Vitest coverage of geo, time, simulation & engine
+  hooks/                useClock (real/simulated), usePlan, useBriefing, useAlarmSound
+  components/           AlarmCard, RadialTimeline, SkyScene, DemoBar,
+                        ConfidenceMeter, TrafficSparkline, forms …
+tests/                  Vitest: geo, time, simulation, engine, confidence, calendar
 ```
 
 The `core/` layer has no React or DOM dependencies, which is why the timeline
-math and traffic model are covered by fast, deterministic unit tests.
+math, traffic model and confidence engine are covered by fast, deterministic
+unit tests.
 
 ## Tech
 
-React 18 · TypeScript (strict) · Vite · Vitest. No UI framework — the design
-system is hand-written CSS.
+React 18 · TypeScript (strict) · Vite · Vitest · PWA. No UI framework — the
+design system is hand-written CSS with the Fraunces + Inter type pairing. The
+living sky is a `<canvas>`; the briefing uses the Web Speech API; both degrade
+gracefully where unsupported.
 
 ## License
 

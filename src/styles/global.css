@@ -103,16 +103,25 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* A quiet, composed wash — a faint teal light from above, nothing showy. */
+/* Fallback wash behind the animated sky (shown before/without canvas paint). */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -2;
+  z-index: -3;
   background:
     radial-gradient(95% 60% at 50% -12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 58%),
-    radial-gradient(80% 60% at 100% 108%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 60%),
     linear-gradient(180deg, var(--bg), var(--bg-2));
+}
+
+/* The living sky sits above the fallback wash, below the grain and content. */
+.sky-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* Fine film grain for tactility — the tell of something hand-finished. */
@@ -244,7 +253,9 @@ body::after {
   padding: 24px 22px 20px;
   border-radius: var(--radius);
   border: 1px solid var(--hair);
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
   box-shadow: var(--shadow);
 }
 
@@ -658,7 +669,9 @@ body::after {
   padding: 22px;
   border-radius: var(--radius);
   border: 1px solid var(--hair);
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
   box-shadow: var(--shadow);
 }
 
@@ -1617,4 +1630,332 @@ select:focus {
 .source-pill-warn {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
   color: var(--warn);
+}
+
+/* ============================================================
+   Living sky, confidence, briefing, live re-plan, demo controls
+   ============================================================ */
+
+/* ---------- On-time confidence ---------- */
+.confidence {
+  padding: 13px 15px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hair);
+  background: var(--surface);
+  margin-bottom: 11px;
+  --conf: var(--good);
+}
+
+.conf-high {
+  --conf: var(--good);
+}
+.conf-med {
+  --conf: var(--warn);
+}
+.conf-low {
+  --conf: var(--hot);
+}
+
+.confidence-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.confidence-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+
+.confidence-pct {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 560;
+  color: var(--conf);
+  font-variant-numeric: tabular-nums;
+}
+
+.confidence-track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ink);
+  overflow: hidden;
+  border: 1px solid var(--hair);
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--conf) 70%, var(--accent)), var(--conf));
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.15, 1);
+}
+
+.confidence-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.confidence-nudge {
+  font-weight: 650;
+  color: var(--conf);
+  white-space: nowrap;
+}
+
+.confidence-nudge.ok {
+  color: var(--text-faint);
+}
+
+/* ---------- Brief-me button ---------- */
+.brief-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.brief-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.brief-btn.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
+}
+
+/* ---------- Live re-plan toast ---------- */
+.replan-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 92vw;
+  padding: 11px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-strong);
+  background: color-mix(in srgb, var(--surface-3) 92%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--text);
+  animation: toast-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --tone: var(--warn);
+}
+
+.replan-toast.worse {
+  --tone: var(--hot);
+}
+.replan-toast.better {
+  --tone: var(--good);
+}
+
+.replan-toast strong {
+  color: var(--tone);
+  font-weight: 700;
+}
+
+.replan-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  flex-shrink: 0;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+}
+
+/* ---------- Simulate morning ---------- */
+.demo-launch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hair-strong);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.demo-launch:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.demo-launch svg {
+  color: var(--accent);
+}
+
+.demo-bar {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--hair));
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-soft);
+}
+
+.demo-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.demo-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--hair-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.demo-btn:hover {
+  border-color: var(--accent);
+}
+
+.demo-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06231c;
+}
+
+.demo-play {
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 12px solid currentColor;
+  margin-left: 3px;
+}
+
+.demo-pause {
+  width: 11px;
+  height: 13px;
+  border-left: 4px solid currentColor;
+  border-right: 4px solid currentColor;
+}
+
+.demo-scrub {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  border: 1px solid var(--hair);
+  padding: 0;
+  cursor: pointer;
+}
+
+.demo-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.demo-scrub::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+}
+
+.demo-time {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 540;
+  font-variant-numeric: tabular-nums;
+  min-width: 62px;
+  text-align: right;
+}
+
+.demo-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.demo-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.demo-speeds {
+  display: flex;
+  gap: 5px;
+}
+
+.demo-speed {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hair-strong);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.demo-speed.on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }

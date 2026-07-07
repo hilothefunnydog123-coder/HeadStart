@@ -1,24 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlarmCard } from "./components/AlarmCard";
 import { CalendarConnectors } from "./components/CalendarConnectors";
 import { CommitmentForm } from "./components/CommitmentForm";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { SkyScene } from "./components/SkyScene";
+import { DemoBar } from "./components/DemoBar";
+import { ReplanToast, type ReplanMessage } from "./components/ReplanToast";
 import {
   mergeCalendarCommitments,
   removeCalendarCommitments,
 } from "./core/calendar";
 import { refreshPlanTiming } from "./core/departure";
+import { buildBriefing, computeConfidence } from "./core/confidence";
+import { formatClock } from "./core/time";
 import type {
   CalendarConnection,
   CalendarProviderId,
   Commitment,
   Place,
 } from "./core/types";
-import { useNow } from "./hooks/useNow";
+import { useClock } from "./hooks/useClock";
 import { usePlan } from "./hooks/usePlan";
 import { useAlarmSound } from "./hooks/useAlarmSound";
 import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
 import { useAlarmNotifications } from "./hooks/useAlarmNotifications";
+import { useBriefing } from "./hooks/useBriefing";
 import { loadState, saveState, type AppState } from "./state/store";
 import { Icon } from "./components/Icon";
 import {
@@ -39,19 +45,25 @@ const CALENDAR_FALLBACK_DESTINATION: Place = {
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [tab, setTab] = useState<Tab>("alarm");
-  const now = useNow(1000);
+  const { now, control } = useClock();
 
   useEffect(() => {
     saveState(state);
   }, [state]);
 
-  const planResult = usePlan(state.commitments, state.settings);
+  const planResult = usePlan(state.commitments, state.settings, now);
 
-  // Keep the plan's countdown/phase live every second without refetching.
+  // Keep the plan's countdown/phase live every tick without refetching.
   const livePlan = useMemo(() => {
     if (planResult.status !== "ready") return null;
     return refreshPlanTiming(planResult.plan, now);
   }, [planResult, now]);
+
+  // On-time probability from the Monte-Carlo model.
+  const confidence = useMemo(
+    () => (livePlan ? computeConfidence(livePlan, state.settings) : null),
+    [livePlan, state.settings],
+  );
 
   useAlarmSound(livePlan?.phase ?? null, state.settings.soundEnabled);
   const liveDepartureStatus = useLiveDepartureStatus(livePlan, state.settings, now);
@@ -76,6 +88,54 @@ export default function App() {
       placeHistory: rememberPlaceUsage(s.placeHistory, place, context),
     }));
   };
+
+  const briefing = useBriefing();
+  const onBrief = () => {
+    if (livePlan && confidence) briefing.speak(buildBriefing(livePlan, confidence));
+  };
+
+  // Speak the briefing automatically the moment the wake phase begins.
+  const briefedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!livePlan || !confidence) return;
+    if (livePlan.phase !== "wake") return;
+    const key = livePlan.wakeBy.toISOString();
+    if (briefedRef.current === key) return;
+    briefedRef.current = key;
+    if (state.settings.soundEnabled && briefing.supported) {
+      briefing.speak(buildBriefing(livePlan, confidence));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [livePlan?.phase, livePlan?.wakeBy.getTime()]);
+
+  // Detect when the recommended departure meaningfully shifts (live re-plan).
+  const [replan, setReplan] = useState<ReplanMessage | null>(null);
+  const prevPlanRef = useRef<{ key: string; leaveMs: number } | null>(null);
+  const replanIdRef = useRef(0);
+  useEffect(() => {
+    if (!livePlan) return;
+    const key = `${livePlan.commitment.id}@${livePlan.arriveBy.getTime()}`;
+    const leaveMs = livePlan.leaveBy.getTime();
+    const prev = prevPlanRef.current;
+    prevPlanRef.current = { key, leaveMs };
+    if (!prev || prev.key !== key) return;
+    const deltaMin = Math.round((prev.leaveMs - leaveMs) / 60_000);
+    if (Math.abs(deltaMin) >= 2) {
+      setReplan({
+        id: ++replanIdRef.current,
+        direction: deltaMin > 0 ? "earlier" : "later",
+        minutes: Math.abs(deltaMin),
+        leaveBy: formatClock(livePlan.leaveBy),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [livePlan?.leaveBy.getTime()]);
+
+  useEffect(() => {
+    if (!replan) return;
+    const id = window.setTimeout(() => setReplan(null), 5200);
+    return () => window.clearTimeout(id);
+  }, [replan]);
 
   const importCalendarCommitments = (
     provider: CalendarProviderId,
@@ -128,6 +188,8 @@ export default function App() {
 
   return (
     <div className="app">
+      <SkyScene now={now} />
+      <ReplanToast message={replan} />
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden>
@@ -179,12 +241,21 @@ export default function App() {
               />
             )}
             {planResult.status === "ready" && livePlan && (
-              <AlarmCard
-                plan={livePlan}
-                now={now}
-                liveStatus={liveDepartureStatus}
-                onReviewLocationConsent={() => setTab("settings")}
-              />
+              <>
+                <AlarmCard
+                  plan={livePlan}
+                  now={now}
+                  liveStatus={liveDepartureStatus}
+                  onReviewLocationConsent={() => setTab("settings")}
+                  confidence={confidence}
+                  briefing={{
+                    supported: briefing.supported,
+                    speaking: briefing.speaking,
+                    onBrief: briefing.speaking ? briefing.stop : onBrief,
+                  }}
+                />
+                <DemoBar control={control} plan={livePlan} now={now} />
+              </>
             )}
           </>
         )}

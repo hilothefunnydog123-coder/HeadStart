@@ -1,17 +1,26 @@
 {
-  "name": "Departure",
+  "name": "Departure — Smart Wake-Up Alarm",
   "short_name": "Departure",
-  "description": "A smart departure alarm that adjusts wake and leave times around traffic.",
-  "start_url": ".",
+  "description": "A wake-up alarm that adjusts to live traffic and transit for your first commitment of the day.",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f2f5f8",
-  "theme_color": "#0fa384",
+  "orientation": "portrait",
+  "background_color": "#0d1014",
+  "theme_color": "#0d1014",
+  "categories": ["productivity", "travel", "lifestyle"],
   "icons": [
     {
-      "src": "favicon.svg",
+      "src": "./favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

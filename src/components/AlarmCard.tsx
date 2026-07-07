@@ -1,8 +1,10 @@
 import type { DeparturePlan, PlanPhase } from "../core/types";
+import type { Confidence } from "../core/confidence";
 import { formatClock, formatDuration } from "../core/time";
 import { TrafficBadge } from "./TrafficBadge";
 import { TrafficSparkline } from "./TrafficSparkline";
 import { RadialTimeline } from "./RadialTimeline";
+import { ConfidenceMeter } from "./ConfidenceMeter";
 import { Icon, MODE_ICON } from "./Icon";
 import type { LiveDepartureStatus } from "../hooks/useLiveDepartureStatus";
 import {
@@ -10,11 +12,19 @@ import {
   systemReminderFileName,
 } from "../core/systemReminders";
 
+interface BriefingControl {
+  supported: boolean;
+  speaking: boolean;
+  onBrief: () => void;
+}
+
 interface Props {
   plan: DeparturePlan;
   now: Date;
   liveStatus: LiveDepartureStatus;
   onReviewLocationConsent: () => void;
+  confidence: Confidence | null;
+  briefing: BriefingControl;
 }
 
 interface Hero {
@@ -96,6 +106,8 @@ export function AlarmCard({
   now,
   liveStatus,
   onReviewLocationConsent,
+  confidence,
+  briefing,
 }: Props) {
   const h = hero(plan, liveStatus);
   const { commitment } = plan;
@@ -135,6 +147,8 @@ export function AlarmCard({
         onReviewLocationConsent={onReviewLocationConsent}
       />
 
+      {confidence && <ConfidenceMeter confidence={confidence} />}
+
       <div className="alarm-commitment">
         <span className="mode-icon" aria-hidden>
           <Icon name={MODE_ICON[commitment.travelMode] ?? "pin"} size={22} />
@@ -143,10 +157,17 @@ export function AlarmCard({
           <div className="commitment-title">{commitment.title}</div>
           <div className="commitment-dest">{commitment.destination.label}</div>
         </div>
-        <div className="commitment-arrive">
-          <span className="commitment-arrive-label">arrive</span>
-          <span className="commitment-arrive-time">{formatClock(plan.arriveBy)}</span>
-        </div>
+        {briefing.supported && (
+          <button
+            type="button"
+            className={`brief-btn ${briefing.speaking ? "on" : ""}`}
+            onClick={briefing.onBrief}
+            aria-label={briefing.speaking ? "Stop briefing" : "Play morning briefing"}
+          >
+            <Icon name="sound" size={17} />
+            {briefing.speaking ? "Stop" : "Brief me"}
+          </button>
+        )}
       </div>
 
       <TrafficBadge estimate={plan.estimate} />
