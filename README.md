@@ -8,7 +8,14 @@ time to get out of bed — then keeps adjusting as conditions change. No more
 setting your alarm for the worst case "just in case."
 
 <p align="center">
-  <img src="docs/screenshot-alarm.png" alt="Departure alarm screen" width="320" />
+  <img src="docs/screenshot-alarm.png" alt="Departure alarm screen — dark" width="300" />
+  &nbsp;
+  <img src="docs/screenshot-alarm-light.png" alt="Departure alarm screen — light" width="300" />
+</p>
+
+<p align="center">
+  <em>A live progress dial counts down your morning, colour-coded by phase, while the
+  sparkline shows the whole rush-hour curve with your departure marked at the sweet spot.</em>
 </p>
 
 ---
@@ -49,6 +56,8 @@ implements `estimate()` and calls `registerProvider()`.
 ## Features
 
 - 🧠 **Traffic-aware wake time** that recomputes as congestion changes.
+- ⭕ **Live progress dial** for the whole morning (wake → leave → arrive) with a moving "now" marker.
+- 📈 **Rush-hour sparkline** that plots congestion across the morning and marks your departure.
 - 📅 **Recurring & one-off commitments** — picks whichever comes next.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
 - 📍 **Home / destination** via presets, manual coordinates, or device geolocation.

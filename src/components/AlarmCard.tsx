@@ -1,7 +1,8 @@
 import type { DeparturePlan, PlanPhase } from "../core/types";
 import { formatClock, formatDuration } from "../core/time";
 import { TrafficBadge } from "./TrafficBadge";
-import { TimelineBar } from "./TimelineBar";
+import { TrafficSparkline } from "./TrafficSparkline";
+import { RadialTimeline } from "./RadialTimeline";
 
 interface Props {
   plan: DeparturePlan;
@@ -23,31 +24,31 @@ function hero(plan: DeparturePlan): Hero {
   switch (phase) {
     case "sleep":
       return {
-        eyebrow: "Recommended wake-up",
+        eyebrow: "Wake up at",
         big: formatClock(plan.wakeBy),
-        sub: `in ${untilWake} · leave by ${formatClock(plan.leaveBy)}`,
+        sub: `in ${untilWake}`,
         className: "phase-sleep",
       };
     case "wake":
       return {
-        eyebrow: "⏰ Time to get up",
+        eyebrow: "⏰ Rise & shine",
         big: "Wake up",
-        sub: `Leave by ${formatClock(plan.leaveBy)} · ${untilLeave} to go`,
+        sub: `leave in ${untilLeave}`,
         className: "phase-wake",
       };
     case "prep":
       return {
-        eyebrow: "Getting ready",
-        big: `Leave in ${untilLeave}`,
-        sub: `Out the door by ${formatClock(plan.leaveBy)}`,
+        eyebrow: "Get ready",
+        big: `Leave in`,
+        sub: untilLeave,
         className: "phase-prep",
       };
     case "leave": {
       const soon = plan.minutesUntilLeave <= 1;
       return {
-        eyebrow: soon ? "🚦 Go" : "Almost time",
-        big: soon ? "Leave now" : `Leave in ${untilLeave}`,
-        sub: `Arrive by ${formatClock(plan.arriveBy)}`,
+        eyebrow: soon ? "🚦 Time to go" : "Almost time",
+        big: soon ? "Leave now" : "Leave in",
+        sub: soon ? `arrive ${formatClock(plan.arriveBy)}` : untilLeave,
         className: "phase-leave",
       };
     }
@@ -55,7 +56,7 @@ function hero(plan: DeparturePlan): Hero {
       return {
         eyebrow: "On your way",
         big: "Safe travels",
-        sub: `Arrive by ${formatClock(plan.arriveBy)}`,
+        sub: `arrive ${formatClock(plan.arriveBy)}`,
         className: "phase-enroute",
       };
     default:
@@ -70,32 +71,65 @@ const MODE_ICON: Record<string, string> = {
   cycle: "🚲",
 };
 
+const activeChip: Record<PlanPhase, "wake" | "leave" | "arrive" | null> = {
+  sleep: "wake",
+  wake: "wake",
+  prep: "leave",
+  leave: "leave",
+  enroute: "arrive",
+  "no-home": null,
+  "no-commitment": null,
+};
+
 export function AlarmCard({ plan, now }: Props) {
   const h = hero(plan);
   const { commitment } = plan;
+  const active = activeChip[plan.phase];
+
+  const chips: { key: "wake" | "leave" | "arrive"; label: string; at: Date }[] = [
+    { key: "wake", label: "Wake", at: plan.wakeBy },
+    { key: "leave", label: "Leave", at: plan.leaveBy },
+    { key: "arrive", label: "Arrive", at: plan.arriveBy },
+  ];
 
   return (
     <section className={`alarm-card ${h.className}`} aria-live="polite">
-      <div className="alarm-hero">
-        <p className="alarm-eyebrow">{h.eyebrow}</p>
-        <h1 className="alarm-big">{h.big}</h1>
-        <p className="alarm-sub">{h.sub}</p>
+      <div className="alarm-dial">
+        <RadialTimeline plan={plan} now={now}>
+          <p className="ring-eyebrow">{h.eyebrow}</p>
+          <div className="ring-big">{h.big}</div>
+          <p className="ring-sub">{h.sub}</p>
+        </RadialTimeline>
+      </div>
+
+      <div className="alarm-chips">
+        {chips.map((c) => (
+          <div
+            key={c.key}
+            className={`chip-stat ${active === c.key ? "chip-stat-active" : ""}`}
+          >
+            <span className="chip-stat-label">{c.label}</span>
+            <span className="chip-stat-time">{formatClock(c.at)}</span>
+          </div>
+        ))}
       </div>
 
       <div className="alarm-commitment">
         <span className="mode-icon" aria-hidden>
           {MODE_ICON[commitment.travelMode] ?? "📍"}
         </span>
-        <div>
+        <div className="commitment-info">
           <div className="commitment-title">{commitment.title}</div>
-          <div className="commitment-dest">
-            {commitment.destination.label} · arrive {formatClock(plan.arriveBy)}
-          </div>
+          <div className="commitment-dest">{commitment.destination.label}</div>
+        </div>
+        <div className="commitment-arrive">
+          <span className="commitment-arrive-label">arrive</span>
+          <span className="commitment-arrive-time">{formatClock(plan.arriveBy)}</span>
         </div>
       </div>
 
       <TrafficBadge estimate={plan.estimate} />
-      <TimelineBar plan={plan} now={now} />
+      <TrafficSparkline leaveBy={plan.leaveBy} />
     </section>
   );
 }
