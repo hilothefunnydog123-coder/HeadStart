@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  googleCalendarEventsToCommitments,
   mergeCalendarCommitments,
   parseCalendarIcs,
   removeCalendarCommitments,
@@ -87,6 +88,57 @@ describe("parseCalendarIcs", () => {
     );
 
     expect(commitments).toHaveLength(0);
+  });
+});
+
+describe("googleCalendarEventsToCommitments", () => {
+  it("imports Google Calendar API timed events without requiring a public feed", () => {
+    const commitments = googleCalendarEventsToCommitments(
+      [
+        {
+          id: "google-event-1",
+          summary: "Private customer meeting",
+          location: "37.8044,-122.2712",
+          start: { dateTime: "2026-07-08T09:45:00-07:00" },
+        },
+      ],
+      fallback,
+      now,
+    );
+
+    expect(commitments).toHaveLength(1);
+    expect(commitments[0]?.title).toBe("Private customer meeting");
+    expect(commitments[0]?.arriveByMinutes).toBe(9 * 60 + 45);
+    expect(commitments[0]?.oneOffDate).toBe("2026-07-08");
+    expect(commitments[0]?.destination.lat).toBe(37.8044);
+    expect(commitments[0]?.source?.externalId).toBe("google-event-1");
+    expect(commitments[0]?.source?.provider).toBe("google");
+  });
+
+  it("skips all-day Google events and flags text-only locations for review", () => {
+    const commitments = googleCalendarEventsToCommitments(
+      [
+        {
+          id: "all-day",
+          summary: "Conference",
+          start: { date: "2026-07-08" },
+        },
+        {
+          id: "timed",
+          summary: "Office visit",
+          location: "Customer HQ",
+          start: { dateTime: "2026-07-08T11:00:00-07:00" },
+        },
+      ],
+      fallback,
+      now,
+    );
+
+    expect(commitments).toHaveLength(1);
+    expect(commitments[0]?.title).toBe("Office visit");
+    expect(commitments[0]?.destination.label).toBe("Customer HQ");
+    expect(commitments[0]?.destination.lat).toBe(fallback.lat);
+    expect(commitments[0]?.source?.needsLocationReview).toBe(true);
   });
 });
 

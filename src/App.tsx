@@ -51,7 +51,12 @@ export default function App() {
   const importCalendarCommitments = (
     provider: CalendarProviderId,
     imported: Commitment[],
-    metadata: { sourceLabel: string; sourceUrl?: string },
+    metadata: {
+      sourceLabel: string;
+      sourceUrl?: string;
+      authMode?: CalendarConnection["authMode"];
+      clientId?: string;
+    },
   ) => {
     setState((s) => ({
       ...s,
@@ -62,6 +67,8 @@ export default function App() {
         lastSyncedAt: new Date().toISOString(),
         sourceLabel: metadata.sourceLabel,
         sourceUrl: metadata.sourceUrl,
+        authMode: metadata.authMode,
+        clientId: metadata.clientId,
         error: undefined,
       }),
     }));
@@ -77,6 +84,8 @@ export default function App() {
         lastSyncedAt: undefined,
         sourceLabel: undefined,
         sourceUrl: undefined,
+        authMode: undefined,
+        clientId: undefined,
         error: undefined,
       }),
     }));

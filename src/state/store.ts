@@ -114,9 +114,11 @@ function normalizeCalendarConnections(
       provider,
       connected: Boolean(saved?.connected),
       eventCount: Number.isFinite(saved?.eventCount) ? Number(saved?.eventCount) : 0,
+      authMode: saved?.authMode,
       lastSyncedAt: saved?.lastSyncedAt,
       sourceLabel: saved?.sourceLabel,
       sourceUrl: saved?.sourceUrl,
+      clientId: saved?.clientId,
       error: saved?.error,
     };
   });

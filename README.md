@@ -61,6 +61,7 @@ implements `estimate()` and calls `registerProvider()`.
 - 📅 **Recurring & one-off commitments** — picks whichever comes next.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
 - 📍 **Home / destination** via presets, manual coordinates, or device geolocation.
+- 🔐 **Private Google Calendar sync** via read-only OAuth; no public iCal feed required.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
 - 💾 **Local-first** — everything persists in `localStorage`; no account, no server.
 - 🎨 Polished, responsive UI with automatic light/dark themes.
@@ -89,6 +90,17 @@ npm run preview    # serve the production build
 1. Enable the **Routes API** in Google Cloud and create an API key.
 2. In the app, open **Settings → Traffic source → Google Routes** and paste the
    key. It's stored only in your browser.
+
+### Using private Google Calendar sync
+
+The Google connector uses Google Identity Services with the
+`calendar.readonly` scope, then reads upcoming events from the signed-in user's
+primary calendar. Users do not need to publish their calendar or paste an iCal
+URL.
+
+For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
+ID whose authorized JavaScript origins include your app URL. For local testing,
+the connector also accepts a client ID directly in the Commitments tab.
 
 ## Architecture
 

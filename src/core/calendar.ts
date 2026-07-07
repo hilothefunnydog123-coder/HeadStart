@@ -42,6 +42,19 @@ interface RawCalendarEvent {
   status?: string;
 }
 
+export interface GoogleCalendarEvent {
+  id?: string;
+  iCalUID?: string;
+  summary?: string;
+  location?: string;
+  status?: string;
+  start?: {
+    date?: string;
+    dateTime?: string;
+    timeZone?: string;
+  };
+}
+
 interface Coordinates {
   lat: number;
   lng: number;
@@ -57,6 +70,27 @@ export function parseCalendarIcs(
   const commitments = readEvents(content)
     .map((event, index) =>
       eventToCommitment(event, provider, fallbackDestination, importedAt, now, index),
+    )
+    .filter((commitment): commitment is Commitment => commitment !== null)
+    .sort((a, b) => {
+      const aNext = nextOccurrence(a, now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bNext = nextOccurrence(b, now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aNext - bNext;
+    });
+
+  return commitments.slice(0, MAX_IMPORTED_EVENTS);
+}
+
+export function googleCalendarEventsToCommitments(
+  events: GoogleCalendarEvent[],
+  fallbackDestination: Place,
+  now = new Date(),
+): Commitment[] {
+  const importedAt = now.toISOString();
+  const commitments = events
+    .map((event, index) => googleEventToRawEvent(event, index))
+    .map((event, index) =>
+      eventToCommitment(event, "google", fallbackDestination, importedAt, now, index),
     )
     .filter((commitment): commitment is Commitment => commitment !== null)
     .sort((a, b) => {
@@ -118,6 +152,36 @@ export function removeCalendarCommitments(
     (commitment) =>
       commitment.source?.kind !== "calendar" || commitment.source.provider !== provider,
   );
+}
+
+function googleEventToRawEvent(
+  event: GoogleCalendarEvent,
+  index: number,
+): RawCalendarEvent {
+  const start = googleEventStart(event);
+  return {
+    uid: event.id || event.iCalUID || `google-${index}`,
+    summary: event.summary,
+    location: event.location,
+    status: event.status,
+    start,
+  };
+}
+
+function googleEventStart(event: GoogleCalendarEvent): ParsedIcsDate | undefined {
+  if (event.start?.dateTime) {
+    const date = new Date(event.start.dateTime);
+    return Number.isNaN(date.getTime()) ? undefined : { date, allDay: false };
+  }
+
+  if (event.start?.date) {
+    const [year, month, day] = event.start.date.split("-").map(Number);
+    if (!year || !month || !day) return undefined;
+    const date = new Date(year, month - 1, day);
+    return Number.isNaN(date.getTime()) ? undefined : { date, allDay: true };
+  }
+
+  return undefined;
 }
 
 function eventToCommitment(
