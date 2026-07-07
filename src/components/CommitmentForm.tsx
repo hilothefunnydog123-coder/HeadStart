@@ -108,7 +108,12 @@ export function CommitmentForm({
         const step = stepById[c.id] ?? "when";
         const needsDestination = isDraftDestination(c);
         return (
-          <div key={c.id} className={`commitment-row ${c.enabled ? "" : "disabled"}`}>
+          <div
+            key={c.id}
+            className={`commitment-row ${c.enabled ? "" : "disabled"} ${
+              open ? "expanded" : ""
+            }`}
+          >
             <div className="commitment-head">
               <label className="switch" title={c.enabled ? "Enabled" : "Disabled"}>
                 <input
@@ -156,14 +161,16 @@ export function CommitmentForm({
               >
                 <Icon name="chevron" size={16} />
               </span>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Delete commitment"
-                onClick={() => remove(c.id)}
-              >
-                <Icon name="close" size={16} />
-              </button>
+              {open && (
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Delete commitment"
+                  onClick={() => remove(c.id)}
+                >
+                  <Icon name="close" size={16} />
+                </button>
+              )}
             </div>
 
             {open && (
