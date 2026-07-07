@@ -3,6 +3,7 @@ import {
   type KeyboardEvent,
   useEffect,
   useId,
+  useRef,
   useState,
 } from "react";
 import type { PlaceSuggestion } from "../core/placeHistory";
@@ -17,6 +18,7 @@ interface Props {
   onChange: (place: Place) => void;
   suggestions?: PlaceSuggestion[];
   onPlaceSelected?: (place: Place) => void;
+  onDismissSuggestion?: (historyId: string) => void;
 }
 
 export function PlacePicker({
@@ -25,6 +27,7 @@ export function PlacePicker({
   onChange,
   suggestions = [],
   onPlaceSelected,
+  onDismissSuggestion,
 }: Props) {
   const inputId = useId();
   const resultsId = useId();
@@ -38,6 +41,8 @@ export function PlacePicker({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const searchRequestRef = useRef(0);
+  const lastSpaceSearchRef = useRef("");
 
   useEffect(() => {
     setLat(value ? String(value.lat) : "");
@@ -62,28 +67,55 @@ export function PlacePicker({
 
   const runSearch = async (event: FormEvent) => {
     event.preventDefault();
-    const trimmed = query.trim();
+    await runSearchForQuery(query, true);
+  };
+
+  const runSearchForQuery = async (
+    rawQuery: string,
+    showShortQueryError = false,
+  ) => {
+    const trimmed = rawQuery.trim();
     setGeoError(null);
     setSearchError(null);
 
     if (trimmed.length < 2) {
-      setSearchError("Enter a building, address, or place name.");
+      setResults([]);
+      setActiveResultIndex(-1);
+      if (showShortQueryError) {
+        setSearchError("Enter a building, address, or place name.");
+      }
       return;
     }
 
+    const requestId = searchRequestRef.current + 1;
+    searchRequestRef.current = requestId;
     setIsSearching(true);
     try {
       const matches = await searchPlaces(trimmed);
+      if (searchRequestRef.current !== requestId) return;
       setResults(matches);
       setActiveResultIndex(matches.length > 0 ? 0 : -1);
       if (matches.length === 0) {
         setSearchError("No matching places found.");
       }
     } catch (err) {
+      if (searchRequestRef.current !== requestId) return;
       setSearchError(err instanceof Error ? err.message : "Place search failed.");
     } finally {
-      setIsSearching(false);
+      if (searchRequestRef.current === requestId) {
+        setIsSearching(false);
+      }
     }
+  };
+
+  const updateQuery = (nextQuery: string) => {
+    setQuery(nextQuery);
+    const trimmed = nextQuery.trim();
+    const endsWithSpace = /\s$/.test(nextQuery);
+    if (!endsWithSpace || trimmed.length < 2) return;
+    if (trimmed === lastSpaceSearchRef.current) return;
+    lastSpaceSearchRef.current = trimmed;
+    void runSearchForQuery(nextQuery);
   };
 
   const commitManual = () => {
@@ -166,7 +198,7 @@ export function PlacePicker({
               role="combobox"
               value={query}
               placeholder="Building or address"
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => updateQuery(event.target.value)}
               onKeyDown={handleSearchKeyDown}
               aria-controls={results.length > 0 ? resultsId : undefined}
               aria-expanded={results.length > 0}
@@ -202,15 +234,29 @@ export function PlacePicker({
           <div className="suggestion-heading">Suggestions from your history</div>
           <div className="suggestion-row">
             {suggestions.map((suggestion) => (
-              <button
+              <div
                 key={`${suggestion.reason}-${suggestion.place.id}`}
-                type="button"
                 className="suggestion-chip"
-                onClick={() => selectPlace(suggestion.place)}
               >
-                <span>{suggestion.place.label}</span>
-                <small>{suggestion.label}</small>
-              </button>
+                <button
+                  type="button"
+                  className="suggestion-choice"
+                  onClick={() => selectPlace(suggestion.place)}
+                >
+                  <span>{suggestion.place.label}</span>
+                  <small>{suggestion.label}</small>
+                </button>
+                {onDismissSuggestion && (
+                  <button
+                    type="button"
+                    className="suggestion-dismiss"
+                    aria-label={`Dismiss ${suggestion.place.label} suggestion`}
+                    onClick={() => onDismissSuggestion(suggestion.historyId)}
+                  >
+                    <Icon name="close" size={14} />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>

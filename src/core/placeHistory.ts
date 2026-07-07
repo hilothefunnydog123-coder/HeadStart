@@ -7,6 +7,7 @@ import type {
 } from "./types";
 
 export interface PlaceSuggestion {
+  historyId: string;
   place: Place;
   reason: "usual" | "recent";
   label: string;
@@ -66,6 +67,13 @@ export function suggestPlaces(
     .slice(0, limit);
 }
 
+export function forgetPlaceHistoryEntry(
+  history: PlaceHistoryEntry[],
+  historyId: string,
+): PlaceHistoryEntry[] {
+  return history.filter((entry) => entry.id !== historyId);
+}
+
 export function normalizePlaceHistory(value: unknown): PlaceHistoryEntry[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -84,6 +92,7 @@ function suggestionForEntry(
 
   if (entry.useCount >= 3 && matchingContexts.length >= 2) {
     return {
+      historyId: entry.id,
       place: entry.place,
       reason: "usual",
       label: "Usually around now",
@@ -94,6 +103,7 @@ function suggestionForEntry(
 
   if (entry.contexts.some((item) => item.kind === context.kind)) {
     return {
+      historyId: entry.id,
       place: entry.place,
       reason: "recent",
       label: "Recent",

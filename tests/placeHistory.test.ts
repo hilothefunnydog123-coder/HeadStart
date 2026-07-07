@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  forgetPlaceHistoryEntry,
   rememberPlaceUsage,
   suggestPlaces,
 } from "../src/core/placeHistory";
@@ -55,5 +56,30 @@ describe("place history", () => {
 
     expect(suggestions[0]?.reason).toBe("usual");
     expect(suggestions[0]?.label).toBe("Usually around now");
+  });
+
+  it("forgets one suggested place without clearing the rest of history", () => {
+    const otherPlace: Place = {
+      id: "gym",
+      label: "Gym",
+      lat: 37.79,
+      lng: -122.42,
+    };
+    let history: PlaceHistoryEntry[] = [];
+    history = rememberPlaceUsage(history, place, mondayMorning);
+    history = rememberPlaceUsage(history, otherPlace, mondayMorning);
+
+    const librarySuggestion = suggestPlaces(history, mondayMorning).find(
+      (suggestion) => suggestion.place.label === "Main Library",
+    );
+    expect(librarySuggestion).toBeDefined();
+
+    const nextHistory = forgetPlaceHistoryEntry(
+      history,
+      librarySuggestion?.historyId ?? "",
+    );
+
+    expect(suggestPlaces(nextHistory, mondayMorning).map((item) => item.place.label))
+      .toEqual(["Gym"]);
   });
 });

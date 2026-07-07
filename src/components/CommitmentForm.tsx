@@ -21,6 +21,7 @@ interface Props {
   onChange: (commitments: Commitment[]) => void;
   placeSuggestions: PlaceSuggestion[];
   onPlaceSelected: (place: Commitment["destination"], context: PlaceUsageContext) => void;
+  onDismissPlaceSuggestion: (historyId: string) => void;
 }
 
 const MODES: { value: TravelMode; label: string }[] = [
@@ -55,6 +56,7 @@ export function CommitmentForm({
   onChange,
   placeSuggestions,
   onPlaceSelected,
+  onDismissPlaceSuggestion,
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stepById, setStepById] = useState<Record<string, CommitmentStep>>({});
@@ -230,6 +232,7 @@ export function CommitmentForm({
                       }
                       suggestions={placeSuggestions}
                       onChange={(destination) => updateDestination(c, destination)}
+                      onDismissSuggestion={onDismissPlaceSuggestion}
                       onPlaceSelected={(place) =>
                         onPlaceSelected(place, currentPlaceContext(c))
                       }
