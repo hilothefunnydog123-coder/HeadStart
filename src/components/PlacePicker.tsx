@@ -10,13 +10,6 @@ interface Props {
   onChange: (place: Place) => void;
 }
 
-const PRESETS: Place[] = [
-  { id: "p-mission", label: "Mission District, SF", lat: 37.7599, lng: -122.4148 },
-  { id: "p-fidi", label: "Financial District, SF", lat: 37.7946, lng: -122.3999 },
-  { id: "p-soma", label: "SoMa, SF", lat: 37.7785, lng: -122.4056 },
-  { id: "p-oak", label: "Downtown Oakland", lat: 37.8044, lng: -122.2712 },
-];
-
 export function PlacePicker({ label, value, onChange }: Props) {
   const [lat, setLat] = useState(value ? String(value.lat) : "");
   const [lng, setLng] = useState(value ? String(value.lng) : "");
@@ -155,19 +148,6 @@ export function PlacePicker({ label, value, onChange }: Props) {
       )}
 
       {searchError && <p className="field-error">{searchError}</p>}
-
-      <div className="preset-row">
-        {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={`chip ${value && value.lat === p.lat && value.lng === p.lng ? "chip-active" : ""}`}
-            onClick={() => selectPlace({ ...p, id: value?.id ?? p.id })}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
 
       <button type="button" className="link-button" onClick={useMyLocation}>
         <Icon name="pin" size={15} />

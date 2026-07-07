@@ -60,7 +60,7 @@ implements `estimate()` and calls `registerProvider()`.
 - 📈 **Rush-hour sparkline** that plots congestion across the morning and marks your departure.
 - 📅 **Recurring & one-off commitments** — picks whichever comes next.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
-- 📍 **Home / destination** via place search, presets, device geolocation, or advanced coordinates.
+- 📍 **Home / destination** via place search, device geolocation, or advanced coordinates.
 - 🔐 **Private Google Calendar sync** via read-only OAuth; no public iCal feed required.
 - 🟡 **Missed-departure alerts** when live location shows you're still at home after leave time.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
