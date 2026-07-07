@@ -12,6 +12,7 @@ import {
 } from "../core/time";
 import { makeId } from "../state/store";
 import { PlacePicker } from "./PlacePicker";
+import { Icon, MODE_ICON } from "./Icon";
 
 interface Props {
   commitments: Commitment[];
@@ -19,10 +20,10 @@ interface Props {
 }
 
 const MODES: { value: TravelMode; label: string }[] = [
-  { value: "drive", label: "🚗 Drive" },
-  { value: "transit", label: "🚉 Transit" },
-  { value: "cycle", label: "🚲 Cycle" },
-  { value: "walk", label: "🚶 Walk" },
+  { value: "drive", label: "Drive" },
+  { value: "transit", label: "Transit" },
+  { value: "cycle", label: "Cycle" },
+  { value: "walk", label: "Walk" },
 ];
 
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
@@ -99,6 +100,9 @@ export function CommitmentForm({ commitments, onChange }: Props) {
                 />
                 <span className="slider" />
               </label>
+              <span className="commitment-mode" aria-hidden>
+                <Icon name={MODE_ICON[c.travelMode] ?? "pin"} size={18} />
+              </span>
               <button
                 type="button"
                 className="commitment-summary"
@@ -123,13 +127,19 @@ export function CommitmentForm({ commitments, onChange }: Props) {
                   </span>
                 )}
               </button>
+              <span
+                className={`commitment-chevron ${open ? "open" : ""}`}
+                aria-hidden
+              >
+                <Icon name="chevron" size={16} />
+              </span>
               <button
                 type="button"
                 className="icon-button"
                 aria-label="Delete commitment"
                 onClick={() => remove(c.id)}
               >
-                ✕
+                <Icon name="close" size={16} />
               </button>
             </div>
 
@@ -155,21 +165,24 @@ export function CommitmentForm({ commitments, onChange }: Props) {
                       }}
                     />
                   </label>
-                  <label className="field">
-                    <span>Travel mode</span>
-                    <select
-                      value={c.travelMode}
-                      onChange={(e) =>
-                        update(c.id, { travelMode: e.target.value as TravelMode })
-                      }
-                    >
-                      {MODES.map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                </div>
+
+                <div className="field">
+                  <span className="field-label">Travel mode</span>
+                  <div className="segmented" role="group" aria-label="Travel mode">
+                    {MODES.map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        className={`segment ${c.travelMode === m.value ? "on" : ""}`}
+                        onClick={() => update(c.id, { travelMode: m.value })}
+                        aria-pressed={c.travelMode === m.value}
+                      >
+                        <Icon name={MODE_ICON[m.value] ?? "pin"} size={18} />
+                        <span>{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="days-row" role="group" aria-label="Repeat days">
@@ -197,7 +210,8 @@ export function CommitmentForm({ commitments, onChange }: Props) {
       })}
 
       <button type="button" className="add-button" onClick={add}>
-        + Add commitment
+        <Icon name="plus" size={17} />
+        Add commitment
       </button>
     </div>
   );

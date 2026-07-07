@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Place } from "../core/types";
 import { makeId } from "../state/store";
+import { Icon } from "./Icon";
 
 interface Props {
   label: string;
@@ -119,7 +120,8 @@ export function PlacePicker({ label, value, onChange }: Props) {
       </div>
 
       <button type="button" className="link-button" onClick={useMyLocation}>
-        📍 Use my current location
+        <Icon name="pin" size={15} />
+        Use my current location
       </button>
       {geoError && <p className="field-error">{geoError}</p>}
     </fieldset>

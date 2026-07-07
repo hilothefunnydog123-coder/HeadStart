@@ -3,6 +3,7 @@ import { formatClock, formatDuration } from "../core/time";
 import { TrafficBadge } from "./TrafficBadge";
 import { TrafficSparkline } from "./TrafficSparkline";
 import { RadialTimeline } from "./RadialTimeline";
+import { Icon, MODE_ICON } from "./Icon";
 
 interface Props {
   plan: DeparturePlan;
@@ -31,7 +32,7 @@ function hero(plan: DeparturePlan): Hero {
       };
     case "wake":
       return {
-        eyebrow: "⏰ Rise & shine",
+        eyebrow: "Rise & shine",
         big: "Wake up",
         sub: `leave in ${untilLeave}`,
         className: "phase-wake",
@@ -46,7 +47,7 @@ function hero(plan: DeparturePlan): Hero {
     case "leave": {
       const soon = plan.minutesUntilLeave <= 1;
       return {
-        eyebrow: soon ? "🚦 Time to go" : "Almost time",
+        eyebrow: soon ? "Time to go" : "Almost time",
         big: soon ? "Leave now" : "Leave in",
         sub: soon ? `arrive ${formatClock(plan.arriveBy)}` : untilLeave,
         className: "phase-leave",
@@ -63,13 +64,6 @@ function hero(plan: DeparturePlan): Hero {
       return { eyebrow: "", big: "", sub: "", className: "" };
   }
 }
-
-const MODE_ICON: Record<string, string> = {
-  drive: "🚗",
-  transit: "🚉",
-  walk: "🚶",
-  cycle: "🚲",
-};
 
 const activeChip: Record<PlanPhase, "wake" | "leave" | "arrive" | null> = {
   sleep: "wake",
@@ -116,7 +110,7 @@ export function AlarmCard({ plan, now }: Props) {
 
       <div className="alarm-commitment">
         <span className="mode-icon" aria-hidden>
-          {MODE_ICON[commitment.travelMode] ?? "📍"}
+          <Icon name={MODE_ICON[commitment.travelMode] ?? "pin"} size={22} />
         </span>
         <div className="commitment-info">
           <div className="commitment-title">{commitment.title}</div>

@@ -90,7 +90,7 @@ export function RadialTimeline({ plan, now, children }: Props) {
           cx={leavePt.x}
           cy={leavePt.y}
           r={5}
-          fill="var(--surface-solid)"
+          fill="var(--surface-2)"
           stroke="var(--phase-2)"
           strokeWidth={3}
         />

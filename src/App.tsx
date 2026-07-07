@@ -18,6 +18,7 @@ import { useNow } from "./hooks/useNow";
 import { usePlan } from "./hooks/usePlan";
 import { useAlarmSound } from "./hooks/useAlarmSound";
 import { loadState, saveState, type AppState } from "./state/store";
+import { Icon } from "./components/Icon";
 
 type Tab = "alarm" | "commitments" | "settings";
 
@@ -95,7 +96,7 @@ export default function App() {
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden>
-            ⏰
+            <Icon name="alarm" size={22} strokeWidth={1.8} />
           </span>
           <div>
             <h1 className="brand-title">Departure</h1>
@@ -173,9 +174,10 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <span>
+        <span className="footer-source">
+          <Icon name="route" size={14} />
           {state.settings.trafficProvider === "google" && state.settings.apiKey
-            ? "Live traffic via Google Routes"
+            ? "Live traffic · Google Routes"
             : "Offline traffic simulation"}
         </span>
         <span className="clock">{now.toLocaleTimeString()}</span>
@@ -218,6 +220,9 @@ function EmptyState({
   if (phase === "no-home") {
     return (
       <div className="placeholder">
+        <span className="placeholder-icon">
+          <Icon name="pin" size={30} strokeWidth={1.5} />
+        </span>
         <h2>Where do you start your day?</h2>
         <p className="muted">Set your home location so we can measure the trip.</p>
         <button className="add-button" onClick={() => goto("settings")}>
@@ -228,11 +233,15 @@ function EmptyState({
   }
   return (
     <div className="placeholder">
+      <span className="placeholder-icon">
+        <Icon name="sunrise" size={30} strokeWidth={1.5} />
+      </span>
       <h2>No upcoming commitments</h2>
       <p className="muted">
         Add something you need to arrive at and we'll wake you in time.
       </p>
       <button className="add-button" onClick={() => goto("commitments")}>
+        <Icon name="plus" size={17} />
         Add a commitment
       </button>
     </div>

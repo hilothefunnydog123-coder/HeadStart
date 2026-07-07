@@ -114,7 +114,7 @@ export function TrafficSparkline({ leaveBy }: Props) {
           cx={leaveX}
           cy={leaveY}
           r={5}
-          fill="var(--surface-solid)"
+          fill="var(--surface-2)"
           stroke="var(--phase-2)"
           strokeWidth={3}
         />
