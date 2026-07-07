@@ -33,6 +33,18 @@ describe("place history", () => {
     expect(suggestions[0]?.place.label).toBe("Main Library");
   });
 
+  it("keeps home and destination suggestions separate", () => {
+    const history = rememberPlaceUsage([], place, mondayMorning);
+
+    expect(
+      suggestPlaces(history, {
+        kind: "home",
+        weekday: 1,
+        hour: 9,
+      }),
+    ).toEqual([]);
+  });
+
   it("promotes repeated same-time selections into usual suggestions", () => {
     let history: PlaceHistoryEntry[] = [];
     history = rememberPlaceUsage(history, place, mondayMorning, new Date("2026-07-01T16:00:00Z"));

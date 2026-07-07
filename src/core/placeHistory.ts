@@ -92,7 +92,7 @@ function suggestionForEntry(
     };
   }
 
-  if (entry.useCount >= 1) {
+  if (entry.contexts.some((item) => item.kind === context.kind)) {
     return {
       place: entry.place,
       reason: "recent",

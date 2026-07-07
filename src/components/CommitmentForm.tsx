@@ -107,6 +107,7 @@ export function CommitmentForm({
       {commitments.map((c) => {
         const open = expandedId === c.id;
         const step = stepById[c.id] ?? "when";
+        const needsDestination = isDraftDestination(c);
         return (
           <div key={c.id} className={`commitment-row ${c.enabled ? "" : "disabled"}`}>
             <div className="commitment-head">
@@ -117,6 +118,7 @@ export function CommitmentForm({
                     c.title || "draft commitment"
                   }`}
                   checked={c.enabled}
+                  disabled={needsDestination}
                   onChange={(e) => update(c.id, { enabled: e.target.checked })}
                 />
                 <span className="slider" />
@@ -134,7 +136,7 @@ export function CommitmentForm({
                 <span className="muted">
                   {c.enabled ? "" : "Draft · "}
                   {minutesToTimeString(c.arriveByMinutes)} ·{" "}
-                  {c.destination.label === "Choose a destination"
+                  {needsDestination
                     ? "add destination"
                     : c.days.length
                       ? c.days.map((d) => WEEKDAY_LABELS[d]).join(" ")
@@ -218,7 +220,7 @@ export function CommitmentForm({
                     <PlacePicker
                       label="Destination"
                       value={
-                        c.destination.label === "Choose a destination"
+                        needsDestination
                           ? null
                           : c.destination
                       }
@@ -329,6 +331,10 @@ function currentPlaceContext(commitment: Commitment): PlaceUsageContext {
     hour: now.getHours(),
     travelMode: commitment.travelMode,
   };
+}
+
+function isDraftDestination(commitment: Commitment): boolean {
+  return commitment.destination.label === "Choose a destination";
 }
 
 function providerLabel(provider: CalendarProviderId): string {

@@ -96,9 +96,9 @@ npm run preview    # serve the production build
 ### Using private Google Calendar sync
 
 The Google connector uses Google Identity Services with the
-`calendar.readonly` scope, then reads upcoming events from the signed-in user's
-primary calendar. Users do not need to publish their calendar or paste an iCal
-URL.
+`calendar.events.readonly` scope, then reads upcoming events from the signed-in
+user's primary calendar. Users do not need to publish their calendar or paste an
+iCal URL.
 
 For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
 ID whose authorized JavaScript origins include your app URL. The production UI
