@@ -14,6 +14,7 @@ export type IconName =
   | "pin"
   | "sunrise"
   | "moon"
+  | "search"
   | "plus"
   | "close"
   | "chevron"
@@ -87,6 +88,12 @@ const PATHS: Record<IconName, JSX.Element> = {
     </>
   ),
   moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5Z" />,
+  search: (
+    <>
+      <circle cx="10.8" cy="10.8" r="6.2" />
+      <path d="m15.5 15.5 4.2 4.2" />
+    </>
+  ),
   plus: (
     <>
       <path d="M12 5.5v13" />

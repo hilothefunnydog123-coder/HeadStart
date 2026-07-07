@@ -936,6 +936,136 @@ select:focus {
   padding: 0 6px;
 }
 
+.place-search {
+  margin-bottom: 11px;
+}
+
+.place-search-field {
+  gap: 7px;
+}
+
+.search-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 45px;
+  padding: 5px 5px 5px 12px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--text-faint);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.search-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.search-control input {
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  box-shadow: none;
+}
+
+.search-control input:focus {
+  box-shadow: none;
+}
+
+.search-button {
+  min-width: 74px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-2));
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.search-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.selected-place {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 10px 11px;
+  margin-bottom: 11px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.selected-place div {
+  min-width: 0;
+}
+
+.selected-place strong,
+.selected-place span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-place strong {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.selected-place span {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.place-results {
+  display: grid;
+  gap: 6px;
+  margin: -1px 0 11px;
+}
+
+.place-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.place-result:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hair));
+  background: var(--surface-2);
+}
+
+.place-result span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .preset-row {
   display: flex;
   flex-wrap: wrap;
@@ -965,6 +1095,29 @@ select:focus {
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.coordinate-details {
+  margin-top: 10px;
+  border-top: 1px solid var(--hair);
+  padding-top: 9px;
+}
+
+.coordinate-details summary {
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.coordinate-details .field-grid {
+  margin-top: 11px;
+}
+
+.place-attribution {
+  margin: 9px 0 0;
+  color: var(--text-faint);
+  font-size: 10.5px;
 }
 
 .field-error {
@@ -1196,4 +1349,3 @@ select:focus {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
   color: var(--warn);
 }
-

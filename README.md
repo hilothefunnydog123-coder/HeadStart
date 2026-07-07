@@ -60,7 +60,7 @@ implements `estimate()` and calls `registerProvider()`.
 - 📈 **Rush-hour sparkline** that plots congestion across the morning and marks your departure.
 - 📅 **Recurring & one-off commitments** — picks whichever comes next.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
-- 📍 **Home / destination** via presets, manual coordinates, or device geolocation.
+- 📍 **Home / destination** via place search, presets, device geolocation, or advanced coordinates.
 - 🔐 **Private Google Calendar sync** via read-only OAuth; no public iCal feed required.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
 - 💾 **Local-first** — everything persists in `localStorage`; no account, no server.
@@ -101,6 +101,13 @@ URL.
 For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
 ID whose authorized JavaScript origins include your app URL. For local testing,
 the connector also accepts a client ID directly in the Commitments tab.
+
+### Place search
+
+Destination search uses OpenStreetMap's Nominatim search endpoint for
+user-triggered searches, with results selected into the app's local commitment
+state. Coordinates remain available under **Advanced coordinates** for edge
+cases or precise corrections.
 
 ## Architecture
 
