@@ -1,12 +1,16 @@
 import { useEffect, useRef } from "react";
 import type { DeparturePlan } from "../core/types";
-import { formatClock } from "../core/time";
+import {
+  alarmNotificationsForPlan,
+  notificationDeliveryState,
+  type AlarmNotification,
+} from "../core/alarmNotifications";
 import {
   notificationPermission,
   showAlarmNotification,
 } from "../core/notifications";
 
-const NOTIFICATION_WINDOW_MS = 60_000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 export function useAlarmNotifications(
   plan: DeparturePlan | null,
@@ -14,43 +18,55 @@ export function useAlarmNotifications(
   now: Date,
 ): void {
   const sent = useRef<Set<string>>(new Set());
+  const scheduleKey = plan
+    ? [
+        plan.commitment.id,
+        plan.commitment.title,
+        plan.commitment.destination.label,
+        plan.wakeBy.toISOString(),
+        plan.leaveBy.toISOString(),
+        plan.arriveBy.toISOString(),
+      ].join(":")
+    : "";
 
   useEffect(() => {
     if (!enabled || !plan || notificationPermission() !== "granted") return;
 
-    const alerts = [
-      {
-        key: "wake",
-        at: plan.wakeBy,
-        title: "Time to wake up",
-        body: `Leave by ${formatClock(plan.leaveBy)} for ${plan.commitment.title}.`,
-      },
-      {
-        key: "leave",
-        at: plan.leaveBy,
-        title: "Time to leave",
-        body: `Head to ${plan.commitment.destination.label}. ETA ${formatClock(
-          plan.arriveBy,
-        )}.`,
-      },
-    ];
+    const timers: ReturnType<typeof window.setTimeout>[] = [];
+    const schedule = (alert: AlarmNotification, anchor: Date) => {
+      const delivery = notificationDeliveryState(alert.at, anchor);
+      if (delivery.status === "expired") return;
 
-    for (const alert of alerts) {
-      const delta = now.getTime() - alert.at.getTime();
-      if (delta < 0 || delta > NOTIFICATION_WINDOW_MS) continue;
+      if (delivery.status === "due") {
+        sendOnce(alert);
+        return;
+      }
 
-      const id = [
-        plan.commitment.id,
-        plan.arriveBy.toISOString(),
-        alert.key,
-      ].join(":");
-      if (sent.current.has(id)) continue;
-      sent.current.add(id);
+      const delay = Math.min(delivery.delayMs, MAX_TIMEOUT_MS);
+      const timer = window.setTimeout(() => {
+        if (delivery.delayMs > MAX_TIMEOUT_MS) {
+          schedule(alert, new Date());
+          return;
+        }
+        sendOnce(alert);
+      }, delay);
+      timers.push(timer);
+    };
+
+    const sendOnce = (alert: AlarmNotification) => {
+      if (sent.current.has(alert.id)) return;
+      sent.current.add(alert.id);
       void showAlarmNotification({
         title: alert.title,
         body: alert.body,
-        tag: `departure-${id}`,
+        tag: alert.tag,
       });
+    };
+
+    for (const alert of alarmNotificationsForPlan(plan)) {
+      schedule(alert, now);
     }
-  }, [enabled, now, plan]);
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [enabled, scheduleKey]);
 }

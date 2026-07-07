@@ -125,7 +125,6 @@ function normalizeCalendarConnections(
       lastSyncedAt: saved?.lastSyncedAt,
       sourceLabel: saved?.sourceLabel,
       sourceUrl: saved?.sourceUrl,
-      clientId: saved?.clientId,
       error: saved?.error,
     };
   });

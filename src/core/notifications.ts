@@ -18,7 +18,7 @@ export async function registerAlarmServiceWorker(): Promise<ServiceWorkerRegistr
   if (typeof navigator === "undefined") return null;
   if (!("serviceWorker" in navigator)) return null;
   try {
-    return await navigator.serviceWorker.register("/sw.js");
+    return await navigator.serviceWorker.register(appAssetUrl("sw.js"));
   } catch {
     return null;
   }
@@ -35,20 +35,27 @@ export async function showAlarmNotification({
 }): Promise<boolean> {
   if (notificationPermission() !== "granted") return false;
   if (typeof navigator === "undefined") return false;
-  const registration = "serviceWorker" in navigator
-    ? await navigator.serviceWorker.ready.catch(() => null)
-    : null;
+  const registration =
+    "serviceWorker" in navigator
+      ? await navigator.serviceWorker.getRegistration().catch(() => null)
+      : null;
 
   if (registration) {
+    const icon = appAssetUrl("favicon.svg");
     await registration.showNotification(title, {
       body,
       tag,
-      badge: "/favicon.svg",
-      icon: "/favicon.svg",
+      badge: icon,
+      icon,
     });
     return true;
   }
 
   new Notification(title, { body, tag });
   return true;
+}
+
+function appAssetUrl(path: string): string {
+  if (typeof window === "undefined") return path;
+  return new URL(path, window.location.href).toString();
 }

@@ -640,6 +640,19 @@ body::after {
   font-family: var(--font-ui);
 }
 
+.alarm-actions {
+  display: flex;
+  margin-top: 11px;
+}
+
+.alarm-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+}
+
 /* ---------- Panels & forms ---------- */
 .panel {
   padding: 22px;
@@ -1311,6 +1324,12 @@ select:focus {
   accent-color: var(--accent);
 }
 
+.consent-row {
+  align-items: flex-start;
+  margin: 12px 0;
+  line-height: 1.45;
+}
+
 .settings-card {
   padding: 14px;
   margin-top: 14px;
@@ -1349,6 +1368,12 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.settings-actions-row {
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
 }
 
 /* ---------- Placeholders ---------- */

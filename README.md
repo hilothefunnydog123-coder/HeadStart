@@ -113,13 +113,18 @@ calendar aggregation provider.
 
 ### Notifications and live location
 
-Departure can request browser notifications from Settings and show wake/leave
-reminders through the browser or installed PWA where supported. Web notification
-delivery still depends on browser and operating-system rules.
+Departure can request browser notifications from Settings and schedule wake/leave
+reminders for the current plan through the browser or installed PWA where
+supported. Web notification delivery still depends on browser and
+operating-system rules, so the alarm screen can also download native calendar
+reminder events for system-level alerts.
 
 Live missed-departure checks use browser geolocation only after the planned leave
 time and before the arrival time. The app stores the on/off preference locally;
 current coordinates are kept in memory for the active page session.
+
+Learned place suggestions are stored only in this browser and can be cleared from
+Settings.
 
 ### Place search
 

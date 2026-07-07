@@ -2,13 +2,13 @@
   "name": "Departure",
   "short_name": "Departure",
   "description": "A smart departure alarm that adjusts wake and leave times around traffic.",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#f2f5f8",
   "theme_color": "#0fa384",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

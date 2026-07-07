@@ -84,7 +84,6 @@ export default function App() {
       sourceLabel: string;
       sourceUrl?: string;
       authMode?: CalendarConnection["authMode"];
-      clientId?: string;
     },
   ) => {
     setState((s) => ({
@@ -97,7 +96,6 @@ export default function App() {
         sourceLabel: metadata.sourceLabel,
         sourceUrl: metadata.sourceUrl,
         authMode: metadata.authMode,
-        clientId: metadata.clientId,
         error: undefined,
       }),
     }));
@@ -114,7 +112,6 @@ export default function App() {
         sourceLabel: undefined,
         sourceUrl: undefined,
         authMode: undefined,
-        clientId: undefined,
         error: undefined,
       }),
     }));
@@ -186,15 +183,7 @@ export default function App() {
                 plan={livePlan}
                 now={now}
                 liveStatus={liveDepartureStatus}
-                onEnableLocationTracking={() =>
-                  setState((s) => ({
-                    ...s,
-                    settings: {
-                      ...s.settings,
-                      locationTrackingEnabled: true,
-                    },
-                  }))
-                }
+                onReviewLocationConsent={() => setTab("settings")}
               />
             )}
           </>
@@ -230,8 +219,12 @@ export default function App() {
             <SettingsPanel
               settings={state.settings}
               placeSuggestions={homeSuggestions}
+              placeHistoryCount={state.placeHistory.length}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
               onChange={(settings) => setState((s) => ({ ...s, settings }))}
+              onClearPlaceHistory={() =>
+                setState((s) => ({ ...s, placeHistory: [] }))
+              }
             />
           </div>
         )}

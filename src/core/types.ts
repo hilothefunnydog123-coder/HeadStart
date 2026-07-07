@@ -42,7 +42,6 @@ export interface CalendarConnection {
   lastSyncedAt?: string;
   sourceLabel?: string;
   sourceUrl?: string;
-  clientId?: string;
   error?: string;
 }
 

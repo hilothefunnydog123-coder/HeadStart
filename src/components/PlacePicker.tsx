@@ -28,6 +28,7 @@ export function PlacePicker({
 }: Props) {
   const inputId = useId();
   const resultsId = useId();
+  const providerDisclosureId = useId();
   const [lat, setLat] = useState(value ? String(value.lat) : "");
   const [lng, setLng] = useState(value ? String(value.lng) : "");
   const [name, setName] = useState(value?.label ?? "");
@@ -162,20 +163,25 @@ export function PlacePicker({
             <input
               id={inputId}
               type="search"
+              role="combobox"
               value={query}
               placeholder="Search a building or address"
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleSearchKeyDown}
               aria-controls={results.length > 0 ? resultsId : undefined}
+              aria-expanded={results.length > 0}
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
               aria-activedescendant={
                 activeResultIndex >= 0 ? `${resultsId}-${activeResultIndex}` : undefined
               }
+              aria-describedby={providerDisclosureId}
             />
             <button type="submit" className="search-button" disabled={isSearching}>
               {isSearching ? "Searching" : "Search"}
             </button>
           </div>
-          <small className="muted">
+          <small id={providerDisclosureId} className="muted">
             Search queries are sent to OpenStreetMap Nominatim.
           </small>
         </label>

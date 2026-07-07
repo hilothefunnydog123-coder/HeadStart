@@ -5,12 +5,16 @@ import { TrafficSparkline } from "./TrafficSparkline";
 import { RadialTimeline } from "./RadialTimeline";
 import { Icon, MODE_ICON } from "./Icon";
 import type { LiveDepartureStatus } from "../hooks/useLiveDepartureStatus";
+import {
+  systemReminderCalendar,
+  systemReminderFileName,
+} from "../core/systemReminders";
 
 interface Props {
   plan: DeparturePlan;
   now: Date;
   liveStatus: LiveDepartureStatus;
-  onEnableLocationTracking: () => void;
+  onReviewLocationConsent: () => void;
 }
 
 interface Hero {
@@ -91,7 +95,7 @@ export function AlarmCard({
   plan,
   now,
   liveStatus,
-  onEnableLocationTracking,
+  onReviewLocationConsent,
 }: Props) {
   const h = hero(plan, liveStatus);
   const { commitment } = plan;
@@ -128,7 +132,7 @@ export function AlarmCard({
       <LiveDeparturePanel
         status={liveStatus}
         showEnablePrompt={plan.phase === "prep" || plan.phase === "leave"}
-        onEnableLocationTracking={onEnableLocationTracking}
+        onReviewLocationConsent={onReviewLocationConsent}
       />
 
       <div className="alarm-commitment">
@@ -147,6 +151,16 @@ export function AlarmCard({
 
       <TrafficBadge estimate={plan.estimate} />
       <TrafficSparkline leaveBy={plan.leaveBy} />
+      <div className="alarm-actions">
+        <button
+          type="button"
+          className="secondary-button alarm-action-button"
+          onClick={() => downloadSystemReminders(plan)}
+        >
+          <Icon name="alarm" size={16} />
+          Download system reminders
+        </button>
+      </div>
     </section>
   );
 }
@@ -154,11 +168,11 @@ export function AlarmCard({
 function LiveDeparturePanel({
   status,
   showEnablePrompt,
-  onEnableLocationTracking,
+  onReviewLocationConsent,
 }: {
   status: LiveDepartureStatus;
   showEnablePrompt: boolean;
-  onEnableLocationTracking: () => void;
+  onReviewLocationConsent: () => void;
 }) {
   if (status.kind === "still-home") {
     return (
@@ -189,9 +203,9 @@ function LiveDeparturePanel({
         <button
           type="button"
           className="mini-button"
-          onClick={onEnableLocationTracking}
+          onClick={onReviewLocationConsent}
         >
-          Enable
+          Review
         </button>
       </div>
     );
@@ -210,4 +224,18 @@ function LiveDeparturePanel({
   }
 
   return null;
+}
+
+function downloadSystemReminders(plan: DeparturePlan): void {
+  const blob = new Blob([systemReminderCalendar(plan)], {
+    type: "text/calendar;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = systemReminderFileName(plan);
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }

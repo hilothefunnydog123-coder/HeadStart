@@ -14,17 +14,24 @@ interface Props {
   settings: Settings;
   onChange: (settings: Settings) => void;
   placeSuggestions: PlaceSuggestion[];
+  placeHistoryCount: number;
   onPlaceSelected: (place: Place, context: PlaceUsageContext) => void;
+  onClearPlaceHistory: () => void;
 }
 
 export function SettingsPanel({
   settings,
   onChange,
   placeSuggestions,
+  placeHistoryCount,
   onPlaceSelected,
+  onClearPlaceHistory,
 }: Props) {
   const [permission, setPermission] =
     useState<AlarmNotificationPermission>("unsupported");
+  const [locationConsentChecked, setLocationConsentChecked] = useState(
+    settings.locationTrackingEnabled,
+  );
 
   useEffect(() => {
     setPermission(notificationPermission());
@@ -163,18 +170,32 @@ export function SettingsPanel({
       <section className="settings-card" aria-labelledby="location-heading">
         <h3 id="location-heading">Live location checks</h3>
         <p>
-          If enabled, Departure asks the browser for location only during the
-          window after your leave time and before your arrival time. It compares
-          your current position to your home point to detect if you have not left.
+          If enabled, Departure asks the browser for location during the window
+          after your leave time and before your arrival time. It compares your
+          current position to your home point to detect if you have not left.
         </p>
         <p>
           The app stores only this on/off preference in local storage. Current
           coordinates stay in memory for the active page session.
         </p>
+        {!settings.locationTrackingEnabled && (
+          <label className="checkbox-row consent-row">
+            <input
+              type="checkbox"
+              checked={locationConsentChecked}
+              onChange={(e) => setLocationConsentChecked(e.target.checked)}
+            />
+            <span>
+              I understand the browser may ask for location access during the
+              leave window, and Departure does not save my coordinates.
+            </span>
+          </label>
+        )}
         <div className="permission-actions">
           <button
             type="button"
             className={settings.locationTrackingEnabled ? "secondary-button" : "primary-button"}
+            disabled={!settings.locationTrackingEnabled && !locationConsentChecked}
             onClick={() =>
               set("locationTrackingEnabled", !settings.locationTrackingEnabled)
             }
@@ -182,6 +203,31 @@ export function SettingsPanel({
             {settings.locationTrackingEnabled
               ? "Turn off live checks"
               : "Enable live checks"}
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-card" aria-labelledby="history-heading">
+        <h3 id="history-heading">Learned places</h3>
+        <p>
+          Suggestions are built only from places you select in this browser. Clear
+          them whenever you want a fresh start.
+        </p>
+        <div className="permission-actions settings-actions-row">
+          <span className="muted">
+            {placeHistoryCount === 0
+              ? "No learned places yet"
+              : `${placeHistoryCount} learned ${
+                  placeHistoryCount === 1 ? "place" : "places"
+                }`}
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={placeHistoryCount === 0}
+            onClick={onClearPlaceHistory}
+          >
+            Clear history
           </button>
         </div>
       </section>
