@@ -179,7 +179,7 @@ export function AlarmCard({
           onClick={() => downloadSystemReminders(plan)}
         >
           <Icon name="alarm" size={16} />
-          Download system reminders
+          Add reminders to Calendar
         </button>
       </div>
     </section>

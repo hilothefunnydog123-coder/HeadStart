@@ -46,7 +46,7 @@ export function SettingsPanel({
   return (
     <div className="settings">
       <PlacePicker
-        label="Home (departure point)"
+        label="Start from"
         value={settings.home}
         onChange={(home) => set("home", home)}
         suggestions={placeSuggestions}
@@ -57,7 +57,7 @@ export function SettingsPanel({
 
       <div className="field-grid">
         <label className="field">
-          <span>Prep time (min)</span>
+          <span>Get ready (min)</span>
           <input
             type="number"
             min={0}
@@ -65,10 +65,10 @@ export function SettingsPanel({
             value={settings.prepMinutes}
             onChange={(e) => set("prepMinutes", clampInt(e.target.value, 0, 240))}
           />
-          <small className="muted">Wake → out the door.</small>
+          <small className="muted">Time from waking up to walking out.</small>
         </label>
         <label className="field">
-          <span>Arrive early (min)</span>
+          <span>Arrival cushion (min)</span>
           <input
             type="number"
             min={0}
@@ -81,7 +81,7 @@ export function SettingsPanel({
           <small className="muted">Safety buffer before the meeting.</small>
         </label>
         <label className="field">
-          <span>Wake comfort (min)</span>
+          <span>Wake cushion (min)</span>
           <input
             type="number"
             min={0}
@@ -97,7 +97,7 @@ export function SettingsPanel({
 
       <div className="field-grid">
         <label className="field">
-          <span>Traffic source</span>
+          <span>Traffic</span>
           <select
             value={settings.trafficProvider}
             onChange={(e) => set("trafficProvider", e.target.value)}
@@ -111,7 +111,7 @@ export function SettingsPanel({
         </label>
         {googleSelected && (
           <label className="field field-wide">
-            <span>Google Routes API key</span>
+            <span>Google Routes key</span>
             <input
               type="password"
               value={settings.apiKey ?? ""}
@@ -134,15 +134,15 @@ export function SettingsPanel({
             checked={settings.soundEnabled}
             onChange={(e) => set("soundEnabled", e.target.checked)}
           />
-          <span>Play a sound when this tab is open</span>
+          <span>Sound in browser</span>
         </label>
 
         <div className="permission-panel">
           <div>
             <strong>Browser notifications</strong>
             <p>
-              Shows wake and leave alerts through the browser or installed PWA.
-              Background delivery depends on browser support.
+              Wake and leave alerts can appear outside the page when your
+              browser supports it.
             </p>
             <small className="muted">Permission: {permissionLabel(permission)}</small>
           </div>
@@ -168,7 +168,7 @@ export function SettingsPanel({
       </section>
 
       <section className="settings-card" aria-labelledby="location-heading">
-        <h3 id="location-heading">Live location checks</h3>
+        <h3 id="location-heading">Missed-departure check</h3>
         <p>
           If enabled, Departure asks the browser for location during the window
           after your leave time and before your arrival time. It compares your
@@ -208,7 +208,7 @@ export function SettingsPanel({
       </section>
 
       <section className="settings-card" aria-labelledby="history-heading">
-        <h3 id="history-heading">Learned places</h3>
+        <h3 id="history-heading">Place suggestions</h3>
         <p>
           Suggestions are built only from places you select in this browser. Clear
           them whenever you want a fresh start.
@@ -227,7 +227,7 @@ export function SettingsPanel({
             disabled={placeHistoryCount === 0}
             onClick={onClearPlaceHistory}
           >
-            Clear history
+            Forget suggestions
           </button>
         </div>
       </section>

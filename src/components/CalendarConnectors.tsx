@@ -144,7 +144,7 @@ export function CalendarConnectors({
     <section className="calendar-connectors" aria-label="Calendar connections">
       <div className="section-heading">
         <div>
-          <h3>Calendar connectors</h3>
+          <h3>Calendar import</h3>
           <p className="muted">Imported events become editable commitments.</p>
         </div>
       </div>

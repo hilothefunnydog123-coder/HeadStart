@@ -68,6 +68,10 @@ export default function App() {
   useAlarmSound(livePlan?.phase ?? null, state.settings.soundEnabled);
   const liveDepartureStatus = useLiveDepartureStatus(livePlan, state.settings, now);
   useAlarmNotifications(livePlan, state.settings.notificationsEnabled, now);
+  const importedEventCount = state.calendarConnections.reduce(
+    (total, connection) => total + (connection.connected ? connection.eventCount : 0),
+    0,
+  );
 
   const nowPlaceContext = {
     weekday: now.getDay() as Weekday,
@@ -262,17 +266,10 @@ export default function App() {
 
         {tab === "commitments" && (
           <div className="panel">
-            <h2 className="panel-title">Your commitments</h2>
+            <h2 className="panel-title">Commitments</h2>
             <p className="muted panel-lead">
-              The alarm plans around whichever enabled commitment comes next.
+              Add where you need to be. Departure handles when to wake and leave.
             </p>
-            <CalendarConnectors
-              connections={state.calendarConnections}
-              fallbackDestination={CALENDAR_FALLBACK_DESTINATION}
-              onImport={importCalendarCommitments}
-              onDisconnect={disconnectCalendar}
-              onError={setCalendarError}
-            />
             <CommitmentForm
               commitments={state.commitments}
               placeSuggestions={destinationSuggestions}
@@ -281,6 +278,25 @@ export default function App() {
                 setState((s) => ({ ...s, commitments }))
               }
             />
+            <details className="import-calendar-details">
+              <summary>
+                <span>Calendar import</span>
+                <small>
+                  {importedEventCount > 0
+                    ? `${importedEventCount} imported ${
+                        importedEventCount === 1 ? "event" : "events"
+                      }`
+                    : "Google Calendar or .ics files"}
+                </small>
+              </summary>
+              <CalendarConnectors
+                connections={state.calendarConnections}
+                fallbackDestination={CALENDAR_FALLBACK_DESTINATION}
+                onImport={importCalendarCommitments}
+                onDisconnect={disconnectCalendar}
+                onError={setCalendarError}
+              />
+            </details>
           </div>
         )}
 

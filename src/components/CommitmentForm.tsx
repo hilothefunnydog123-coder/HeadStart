@@ -56,9 +56,7 @@ export function CommitmentForm({
   placeSuggestions,
   onPlaceSelected,
 }: Props) {
-  const [expandedId, setExpandedId] = useState<string | null>(
-    commitments[0]?.id ?? null,
-  );
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stepById, setStepById] = useState<Record<string, CommitmentStep>>({});
 
   const update = (id: string, patch: Partial<Commitment>) =>
@@ -92,6 +90,7 @@ export function CommitmentForm({
         ? { ...c.source, needsLocationReview: false }
         : c.source,
     });
+    setStep(c.id, "travel");
   };
 
   const setStep = (id: string, step: CommitmentStep) => {
@@ -138,9 +137,7 @@ export function CommitmentForm({
                   {minutesToTimeString(c.arriveByMinutes)} ·{" "}
                   {needsDestination
                     ? "add destination"
-                    : c.days.length
-                      ? c.days.map((d) => WEEKDAY_LABELS[d]).join(" ")
-                      : c.oneOffDate ?? "one-off"}
+                    : c.destination.label}
                 </span>
                 {c.source?.kind === "calendar" && (
                   <span
@@ -233,6 +230,7 @@ export function CommitmentForm({
                     <StepActions
                       onBack={() => setStep(c.id, "when")}
                       onNext={() => setStep(c.id, "travel")}
+                      nextDisabled={needsDestination}
                     />
                   </div>
                 )}
@@ -273,7 +271,11 @@ export function CommitmentForm({
                         ))}
                       </div>
                     </div>
-                    <StepActions onBack={() => setStep(c.id, "where")} />
+                    <StepActions
+                      onBack={() => setStep(c.id, "where")}
+                      onNext={() => setExpandedId(null)}
+                      nextLabel="Done"
+                    />
                   </div>
                 )}
               </div>
@@ -284,7 +286,7 @@ export function CommitmentForm({
 
       <button type="button" className="add-button" onClick={add}>
         <Icon name="plus" size={17} />
-        Add commitment
+        New commitment
       </button>
     </div>
   );
@@ -303,9 +305,13 @@ const COMMITMENT_STEPS: {
 function StepActions({
   onBack,
   onNext,
+  nextLabel = "Next",
+  nextDisabled = false,
 }: {
   onBack?: () => void;
   onNext?: () => void;
+  nextLabel?: string;
+  nextDisabled?: boolean;
 }) {
   return (
     <div className="step-actions">
@@ -315,8 +321,13 @@ function StepActions({
         </button>
       )}
       {onNext && (
-        <button type="button" className="primary-button" onClick={onNext}>
-          Next
+        <button
+          type="button"
+          className="primary-button"
+          disabled={nextDisabled}
+          onClick={onNext}
+        >
+          {nextLabel}
         </button>
       )}
     </div>

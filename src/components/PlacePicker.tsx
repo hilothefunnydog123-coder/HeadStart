@@ -157,7 +157,7 @@ export function PlacePicker({
 
       <form className="place-search" onSubmit={(event) => void runSearch(event)}>
         <label className="field place-search-field">
-          <span>Place search</span>
+          <span>Search</span>
           <div className="search-control">
             <Icon name="search" size={17} />
             <input
@@ -165,7 +165,7 @@ export function PlacePicker({
               type="search"
               role="combobox"
               value={query}
-              placeholder="Search a building or address"
+              placeholder="Building or address"
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleSearchKeyDown}
               aria-controls={results.length > 0 ? resultsId : undefined}
@@ -182,7 +182,7 @@ export function PlacePicker({
             </button>
           </div>
           <small id={providerDisclosureId} className="muted">
-            Search queries are sent to OpenStreetMap Nominatim.
+            Search uses OpenStreetMap.
           </small>
         </label>
       </form>
@@ -192,9 +192,7 @@ export function PlacePicker({
           <Icon name="pin" size={17} />
           <div>
             <strong>{value.label}</strong>
-            <span>
-              {value.lat.toFixed(5)}, {value.lng.toFixed(5)}
-            </span>
+            <span>Selected location</span>
           </div>
         </div>
       )}
@@ -253,12 +251,12 @@ export function PlacePicker({
 
       <button type="button" className="link-button" onClick={useMyLocation}>
         <Icon name="pin" size={15} />
-        Use my current location
+        Use current location
       </button>
       {geoError && <p className="field-error">{geoError}</p>}
 
       <details className="coordinate-details">
-        <summary>Advanced coordinates</summary>
+        <summary>Coordinates</summary>
         <div className="field-grid">
           <label className="field">
             <span>Name</span>
