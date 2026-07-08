@@ -51,6 +51,7 @@ minGapTicks = input.int(0,  "Minimum gap size (ticks)",        minval = 0,      
 maxZones    = input.int(12, "Max active zones kept per TF",    minval = 1, maxval = 40, group = grpFvg)
 showBoxes   = input.bool(true, "Draw FVG boxes", group = grpFvg)
 firstTapOnly = input.bool(false, "Only trade the FIRST tap of each zone", group = grpFvg)
+useCloudFvg  = input.bool(false, "FVG zone must overlap the EMA cloud (true confluence)", group = grpFvg)
 
 grpFilt = "Entry quality filters (all optional — toggle one at a time)"
 useSlope    = input.bool(false, "Cloud slope: both EMAs must be rising", group = grpFilt)
@@ -64,6 +65,17 @@ volMult     = input.float(1.2,  "└ Volume multiple of 20-bar average", minval 
 useHtfTrend = input.bool(false, "1-hour trend filter: close above 1h EMA", group = grpFilt)
 htfTrendLen = input.int(50,     "└ 1h EMA length", minval = 1, group = grpFilt)
 useVwap     = input.bool(false, "Price must be above session VWAP", group = grpFilt)
+useAdx      = input.bool(false, "ADX trend-strength filter (skip range days)", group = grpFilt)
+adxMin      = input.float(20,   "└ Min ADX(14)", minval = 5, step = 1, group = grpFilt)
+useStruct   = input.bool(false, "Fresh structure: recent break of a swing high", group = grpFilt)
+structLen   = input.int(20,     "└ Swing high lookback (bars)", minval = 2, group = grpFilt)
+structWithin = input.int(10,    "└ Break must be within last N bars", minval = 1, group = grpFilt)
+useSweep    = input.bool(false, "Liquidity sweep: wick below a prior low, reclaimed", group = grpFilt)
+sweepLen    = input.int(10,     "└ Prior low lookback (bars)", minval = 2, group = grpFilt)
+sweepWithin = input.int(3,      "└ Sweep within last N bars", minval = 1, group = grpFilt)
+useDayOpen  = input.bool(false, "Longs only above the daily open", group = grpFilt)
+usePbReset  = input.bool(false, "One trade per pullback (re-arm above fast EMA)", group = grpFilt)
+pbResetBars = input.int(2,      "└ Closes above fast EMA needed to re-arm", minval = 1, group = grpFilt)
 maxStretch  = input.float(0.0,  "Max distance of close above fast EMA (ATR mult, 0 = off)", minval = 0.0, step = 0.1, group = grpFilt)
 
 grpRisk = "Risk management"
@@ -89,6 +101,8 @@ minRR        = input.float(0.5,  "└ Min reward:risk to still take the trade", 
 grpSess    = "Session filter"
 useSession = input.bool(false, "Limit entries to a session", group = grpSess)
 sess       = input.session("0830-1500", "Session (exchange time)", group = grpSess)
+useLunchSkip = input.bool(false, "Skip lunch chop", group = grpSess)
+lunchSess    = input.session("1030-1230", "Lunch session (exchange time; CME = Chicago)", group = grpSess)
 
 // ----------------------------------------------------------------------------
 // EMA cloud — chart timeframe, so it adapts when you change timeframes
@@ -171,12 +185,16 @@ f_trackFvg(float hi, float lo, int tm, bool enabled, bool firstOnly, color zoneC
     inZone = false
     float zoneBottom = na
     if enabled and array.size(tops) > 0
+        cTop = math.max(emaFast, emaSlow)
+        cBot = math.min(emaFast, emaSlow)
         for i = 0 to array.size(tops) - 1
-            if low <= array.get(tops, i) and high >= array.get(bottoms, i)
-                if not firstOnly or not array.get(touched, i)
+            zTop = array.get(tops, i)
+            zBot = array.get(bottoms, i)
+            if low <= zTop and high >= zBot
+                cloudHit = not useCloudFvg or (zTop >= cBot and zBot <= cTop)
+                if cloudHit and (not firstOnly or not array.get(touched, i))
                     inZone := true
-                    b = array.get(bottoms, i)
-                    zoneBottom := na(zoneBottom) ? b : math.min(zoneBottom, b)
+                    zoneBottom := na(zoneBottom) ? zBot : math.min(zoneBottom, zBot)
                 array.set(touched, i, true)
     [inZone, zoneBottom]
 
@@ -213,6 +231,28 @@ htfOk     = not useHtfTrend or close > htfEma
 vwapOk    = not useVwap     or close > vwapVal
 stretchOk = maxStretch == 0 or close - emaFast <= maxStretch * atr14
 
+// structure / sweep / regime confluences
+[diPlus, diMinus, adxVal] = ta.dmi(14, 14)
+hhPrev    = ta.highest(high, structLen)[1]
+bosBars   = ta.barssince(high > hhPrev)
+priorLow  = ta.lowest(low, sweepLen)[1]
+sweepBars = ta.barssince(low < priorLow and close > priorLow)
+dayOpen   = request.security(syminfo.tickerid, "D", open, lookahead = barmerge.lookahead_on)
+
+adxOk     = not useAdx     or adxVal >= adxMin
+structOk  = not useStruct  or (not na(bosBars) and bosBars <= structWithin)
+sweepOk   = not useSweep   or (not na(sweepBars) and sweepBars <= sweepWithin)
+dayOpenOk = not useDayOpen or close > dayOpen
+
+// one-trade-per-pullback state: after a signal, price must first leave the
+// cloud again (close above the fast EMA for N bars) before a new tap counts
+var bool pbArmed  = true
+var int aboveFast = 0
+aboveFast := close > emaFast ? aboveFast + 1 : 0
+if not pbArmed and aboveFast >= pbResetBars
+    pbArmed := true
+pbOk = not usePbReset or pbArmed
+
 plot(useVwap ? vwapVal : na, "Session VWAP", color = color.new(color.yellow, 30))
 
 // ----------------------------------------------------------------------------
@@ -235,6 +275,7 @@ cooldownOk = cooldownBars == 0 or na(lastEntryBar) or bar_index - lastEntryBar >
 // Entry logic: bullish cloud + tap into the cloud + FVG alignment + filters
 // ----------------------------------------------------------------------------
 inSession = not useSession or not na(time(timeframe.period, sess))
+lunchOk   = not useLunchSkip or na(time(timeframe.period, lunchSess))
 
 cloudTap = bullCloud
      and low <= emaFast                                  // price reached into the cloud
@@ -247,7 +288,12 @@ longCond = cloudTap
      and inSession
      and (not useTrendEma or close > emaTrend)
      and slopeOk and thickOk and candleOk and volOk and htfOk and vwapOk and stretchOk
+     and adxOk and structOk and sweepOk and dayOpenOk and pbOk and lunchOk
      and dayOk and lossOk and cooldownOk
+
+// a fired signal consumes this pullback until price re-arms above the fast EMA
+if longCond
+    pbArmed := false
 
 scaleOut = exitStyle == "Scale-out (2 targets)"
 
