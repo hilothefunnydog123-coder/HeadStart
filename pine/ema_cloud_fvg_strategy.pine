@@ -79,8 +79,12 @@ pbResetBars = input.int(2,      "└ Closes above fast EMA needed to re-arm", mi
 maxStretch  = input.float(0.0,  "Max distance of close above fast EMA (ATR mult, 0 = off)", minval = 0.0, step = 0.1, group = grpFilt)
 
 grpRisk = "Risk management"
+entryMode    = input.string("Market", "Entry type", options = ["Market", "Limit at fast EMA", "Limit at signal bar 50%"], group = grpRisk)
+limitTtl     = input.int(3,    "└ Cancel unfilled limit after N bars", minval = 1, group = grpRisk)
 stopBasis    = input.string("FVG bottom", "Stop placement", options = ["FVG bottom", "Slow EMA", "Lowest of both"], group = grpRisk)
 stopBufTicks = input.int(8,    "Stop buffer (ticks)",       minval = 0,               group = grpRisk)
+useAtrFloor  = input.bool(false, "Minimum stop distance (ATR floor)", group = grpRisk)
+atrFloorMult = input.float(1.2,  "└ Min stop distance (ATR-14 multiple)", minval = 0.1, step = 0.1, group = grpRisk)
 exitStyle    = input.string("Single target", "Exit style", options = ["Single target", "Scale-out (2 targets)"], group = grpRisk)
 rMult        = input.float(2.0, "Single target: take-profit (R multiple)", minval = 0.1, step = 0.1, group = grpRisk)
 tp1R         = input.float(0.75, "Scale-out: TP1 (R)", minval = 0.1, step = 0.05, group = grpRisk)
@@ -304,35 +308,58 @@ var bool  beDone   = false
 var bool  tp1Done  = false
 var float entryQty = na
 var float maxQtySeen = 0.0
+var int   pendBar = na
 
 if longCond and strategy.position_size == 0
+    // limit modes wait for a deeper dip instead of buying the signal close:
+    // a lower entry against the same stop shrinks the risk, pulls the target
+    // closer in points, and lifts the odds of reaching it
+    float entryPx = close
+    if entryMode == "Limit at fast EMA"
+        entryPx := math.min(emaFast, close)
+    else if entryMode == "Limit at signal bar 50%"
+        entryPx := math.min((high + low) / 2, close)
     float baseStop = switch stopBasis
         "FVG bottom" => na(fvgBottom) ? emaSlow : fvgBottom
         "Slow EMA"   => emaSlow
         => math.min(na(fvgBottom) ? emaSlow : fvgBottom, emaSlow)
     stopPrice = baseStop - stopBufTicks * syminfo.mintick
-    riskPts   = close - stopPrice
+    if useAtrFloor
+        stopPrice := math.min(stopPrice, entryPx - atrFloorMult * atr14)
+    riskPts = entryPx - stopPrice
     // single-target mode: optionally cap the target at the recent swing high
     // (targets just under structure get hit far more often than fixed R targets
     // placed beyond it); skip the trade if the capped reward:risk is too small
-    float tpSingle = close + rMult * riskPts
+    float tpSingle = entryPx + rMult * riskPts
     if useSwingCap and not scaleOut
         tpSingle := math.min(tpSingle, swingHigh)
-    rrOk = scaleOut or not useSwingCap or tpSingle - close >= minRR * riskPts
+    rrOk = scaleOut or not useSwingCap or tpSingle - entryPx >= minRR * riskPts
     if riskPts > 0 and rrOk
         trStop  := stopPrice
-        trTp1   := close + tp1R * riskPts
-        trTp    := scaleOut ? close + tp2R * riskPts : tpSingle
+        trTp1   := entryPx + tp1R * riskPts
+        trTp    := scaleOut ? entryPx + tp2R * riskPts : tpSingle
         beDone  := false
         tp1Done := false
         tradesToday  += 1
         lastEntryBar := bar_index
-        strategy.entry("Long", strategy.long)
+        if entryMode == "Market"
+            strategy.entry("Long", strategy.long)
+        else
+            strategy.entry("Long", strategy.long, limit = entryPx)
+            pendBar := bar_index
         if scaleOut
             strategy.exit("TP1", from_entry = "Long", qty_percent = tp1Pct, stop = trStop, limit = trTp1)
             strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
         else
             strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
+
+// cancel a stale unfilled limit order (filled, timed out, or cloud died)
+if not na(pendBar)
+    if strategy.position_size > 0
+        pendBar := na
+    else if bar_index - pendBar >= limitTtl or not bullCloud
+        strategy.cancel("Long")
+        pendBar := na
 
 // track the filled entry size so a partial TP1 fill can be detected
 if strategy.position_size > 0
