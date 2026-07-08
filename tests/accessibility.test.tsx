@@ -53,13 +53,6 @@ describe("screen-reader behavior", () => {
         settings={settings}
         liveStatus={{ kind: "disabled" }}
         onReviewLocationConsent={() => undefined}
-        originOverride={null}
-        originOverrideSource={null}
-        originMessage={null}
-        checkingOrigin={false}
-        onUseCurrentOrigin={() => undefined}
-        onUseDestinationOrigin={() => undefined}
-        onClearOriginOverride={() => undefined}
         confidence={null}
         briefing={{
           supported: false,
@@ -71,49 +64,5 @@ describe("screen-reader behavior", () => {
 
     expect(container.querySelector(".alarm-card")).not.toHaveAttribute("aria-live");
     expect(screen.getAllByRole("status")).toHaveLength(1);
-  });
-
-  it("shows the yellow late state when the user has not left", () => {
-    const now = new Date(2026, 6, 13, 8, 25, 0);
-    const plan = buildPlan({
-      commitment,
-      arriveBy: new Date(2026, 6, 13, 9, 0, 0),
-      estimate,
-      settings,
-      now,
-    });
-
-    const { container } = render(
-      <AlarmCard
-        plan={plan}
-        now={now}
-        settings={settings}
-        liveStatus={{
-          kind: "still-home",
-          distanceFromHomeMeters: 12,
-          estimate,
-          arrival: new Date(2026, 6, 13, 9, 8, 0),
-          delayMinutes: 8,
-        }}
-        onReviewLocationConsent={() => undefined}
-        originOverride={null}
-        originOverrideSource={null}
-        originMessage={null}
-        checkingOrigin={false}
-        onUseCurrentOrigin={() => undefined}
-        onUseDestinationOrigin={() => undefined}
-        onClearOriginOverride={() => undefined}
-        confidence={null}
-        briefing={{
-          supported: false,
-          speaking: false,
-          onBrief: () => undefined,
-        }}
-      />,
-    );
-
-    expect(container.querySelector(".alarm-card")).toHaveClass("phase-late");
-    expect(screen.getByText("You are late")).toBeInTheDocument();
-    expect(screen.getByText(/Updated arrival/)).toBeInTheDocument();
   });
 });

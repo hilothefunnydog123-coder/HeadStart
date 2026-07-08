@@ -1,5 +1,4 @@
 import { isoDate, nextOccurrence } from "./time";
-import { isTestLikeTitle } from "./schedule";
 import type {
   CalendarProviderId,
   Commitment,
@@ -9,7 +8,7 @@ import type {
 } from "./types";
 
 const MAX_IMPORTED_EVENTS = 50;
-const DEFAULT_TRAVEL_MODE: TravelMode = "walk";
+const DEFAULT_TRAVEL_MODE: TravelMode = "drive";
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
 
 const DAY_CODE_TO_WEEKDAY: Record<string, Weekday> = {
@@ -214,7 +213,6 @@ function eventToCommitment(
   const recurrenceDays = event.rrule ? parseRecurrenceDays(event.rrule, event.start.date) : null;
   const days = recurrenceDays ?? [];
   const title = event.summary?.trim() || "Calendar event";
-  const itemType = isTestLikeTitle(title) ? "test" : "class";
   const externalId = event.uid || `${provider}-${event.start.date.toISOString()}-${index}`;
   const destinationInfo = destinationFromEvent(
     event,
@@ -226,21 +224,12 @@ function eventToCommitment(
   const commitment: Commitment = {
     id: `cal-${provider}-${stableIdPart(externalId)}`,
     title,
-    itemType,
     destination: destinationInfo.destination,
     travelMode: DEFAULT_TRAVEL_MODE,
     arriveByMinutes: event.start.date.getHours() * 60 + event.start.date.getMinutes(),
     days,
     oneOffDate: days.length > 0 ? undefined : isoDate(event.start.date),
     enabled: !destinationInfo.needsLocationReview,
-    originStrategy: "previous",
-    test: itemType === "test"
-      ? {
-          testDate: isoDate(event.start.date),
-          targetStudyMinutes: 180,
-          difficulty: "standard",
-        }
-      : undefined,
     source: {
       kind: "calendar",
       provider,

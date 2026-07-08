@@ -53,17 +53,14 @@ function seedReadyState() {
       commitments: [
         {
           id: "standup",
-          title: "Biology 101",
-          itemType: "class",
-          buildingName: "Science Hall",
-          room: "204",
+          title: "Morning standup",
           destination: {
             id: "office",
-            label: "Science Hall",
+            label: "Office",
             lat: 37.7946,
             lng: -122.3999,
           },
-          travelMode: "walk",
+          travelMode: "drive",
           arriveByMinutes: 9 * 60,
           days: [1, 2, 3, 4, 5],
           enabled: true,
@@ -83,7 +80,7 @@ describe("visual regression contracts", () => {
   it("keeps the alarm screen's key visual sections present", async () => {
     seedReadyState();
     const { container } = render(<App />);
-    await screen.findAllByText("Biology 101");
+    await screen.findByText("Morning standup");
 
     expect(visualSignature(container)).toMatchInlineSnapshot(`
       {
@@ -94,8 +91,8 @@ describe("visual regression contracts", () => {
         "shell": true,
         "sourceBadge": "Offline simulation",
         "tabs": [
-          "Now",
-          "Schedule",
+          "Alarm",
+          "Commitments",
           "Settings",
         ],
         "viewport": "1280x900",
@@ -107,7 +104,7 @@ describe("visual regression contracts", () => {
     setViewport(390, 844);
     seedReadyState();
     const { container } = render(<App />);
-    await screen.findAllByText("Biology 101");
+    await screen.findByText("Morning standup");
 
     expect(visualSignature(container)).toMatchInlineSnapshot(`
       {
@@ -118,8 +115,8 @@ describe("visual regression contracts", () => {
         "shell": true,
         "sourceBadge": "Offline simulation",
         "tabs": [
-          "Now",
-          "Schedule",
+          "Alarm",
+          "Commitments",
           "Settings",
         ],
         "viewport": "390x844",
@@ -132,11 +129,11 @@ describe("visual regression contracts", () => {
     render(<App />);
     await user.click(await screen.findByRole("tab", { name: "Settings" }));
 
-    expect(screen.getByText("Test alerts")).toBeInTheDocument();
+    expect(screen.getByText("Test my alarm")).toBeInTheDocument();
     expect(screen.getByText("Saved places")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add home/dorm" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add school/campus" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add home" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add work" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add school" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Test sound" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Test location check" })).toBeInTheDocument();
   });

@@ -141,7 +141,7 @@ export function buildBriefing(
 
   const parts = [
     `Good morning.`,
-    `Your next schedule item is ${plan.commitment.title} at ${clock(plan.arriveBy)}.`,
+    `Your first commitment is ${plan.commitment.title} at ${clock(plan.arriveBy)}.`,
     `${traffic} — plan to leave by ${clock(plan.leaveBy)}.`,
     `You're ${pct} percent likely to arrive on time.`,
   ];

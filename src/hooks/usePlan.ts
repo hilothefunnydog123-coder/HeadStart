@@ -1,15 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  planNextDeparture,
-  type OriginOverrideSource,
-} from "../core/departure";
-import type {
-  Commitment,
-  DeparturePlan,
-  Place,
-  PlanPhase,
-  Settings,
-} from "../core/types";
+import { planNextDeparture } from "../core/departure";
+import type { Commitment, DeparturePlan, PlanPhase, Settings } from "../core/types";
 
 export type PlanResult =
   | { status: "loading" }
@@ -29,17 +20,10 @@ export function usePlan(
   commitments: Commitment[],
   settings: Settings,
   now: Date,
-  originOverride: Place | null = null,
-  originOverrideSource: OriginOverrideSource | null = null,
 ): PlanResult {
   const [result, setResult] = useState<PlanResult>({ status: "loading" });
 
-  const inputsKey = JSON.stringify({
-    commitments,
-    settings,
-    originOverride,
-    originOverrideSource,
-  });
+  const inputsKey = JSON.stringify({ commitments, settings });
   const minuteBucket = Math.floor(now.getTime() / 60_000);
 
   // Keep the freshest `now` available to the async fetch without making it a
@@ -55,8 +39,6 @@ export function usePlan(
           commitments,
           settings,
           nowRef.current,
-          originOverride,
-          originOverrideSource ?? "manual",
         );
         if (cancelled) return;
         if ("commitment" in outcome) {
@@ -76,7 +58,7 @@ export function usePlan(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputsKey, minuteBucket, originOverride, originOverrideSource]);
+  }, [inputsKey, minuteBucket]);
 
   return result;
 }

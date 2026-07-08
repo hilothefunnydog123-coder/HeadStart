@@ -41,7 +41,7 @@ export function useLiveDepartureStatus(
   now: Date,
 ): LiveDepartureStatus {
   const shouldCheck =
-    Boolean(settings.locationTrackingEnabled && plan?.origin) &&
+    Boolean(settings.locationTrackingEnabled && plan && settings.home) &&
     Boolean(plan && shouldCheckLateDeparture(plan, now));
   const location = useLiveLocation(shouldCheck);
   const trackedLocation = location.kind === "tracking" ? location : null;
@@ -49,11 +49,11 @@ export function useLiveDepartureStatus(
   const [estimateError, setEstimateError] = useState<string | null>(null);
 
   const estimateKey = useMemo(() => {
-    if (!plan || !trackedLocation) return "";
+    if (!plan || !settings.home || !trackedLocation) return "";
     if (!shouldCheckLateDeparture(plan, now)) return "";
     if (
       !isStillAtDeparture(
-        plan.origin,
+        settings.home,
         trackedLocation.place,
         trackedLocation.accuracyMeters,
       )
@@ -65,7 +65,7 @@ export function useLiveDepartureStatus(
       minute: Math.floor(now.getTime() / MS_PER_MIN),
       provider: settings.trafficProvider,
       apiKey: settings.apiKey,
-      origin: plan.origin,
+      home: settings.home,
       current: {
         lat: Number(trackedLocation.place.lat.toFixed(5)),
         lng: Number(trackedLocation.place.lng.toFixed(5)),
@@ -76,7 +76,7 @@ export function useLiveDepartureStatus(
   }, [now, plan, settings, trackedLocation]);
 
   useEffect(() => {
-    if (!estimateKey || !plan || !trackedLocation) {
+    if (!estimateKey || !plan || !settings.home || !trackedLocation) {
       setEstimate(null);
       setEstimateError(null);
       return;
@@ -119,17 +119,17 @@ export function useLiveDepartureStatus(
   }, [estimateKey]);
 
   if (!settings.locationTrackingEnabled) return { kind: "disabled" };
-  if (!plan || !shouldCheckLateDeparture(plan, now)) {
+  if (!plan || !settings.home || !shouldCheckLateDeparture(plan, now)) {
     return { kind: "not-due" };
   }
   if (location.kind === "requesting") return { kind: "requesting" };
   if (location.kind === "error") return { kind: "error", message: location.message };
   if (!trackedLocation) return { kind: "requesting" };
 
-  const distanceFromHomeMeters = distanceBetween(plan.origin, trackedLocation.place);
+  const distanceFromHomeMeters = distanceBetween(settings.home, trackedLocation.place);
   if (
     !isStillAtDeparture(
-      plan.origin,
+      settings.home,
       trackedLocation.place,
       trackedLocation.accuracyMeters,
     )

@@ -40,17 +40,12 @@ function planWith(durationMin: number, congestion: number): DeparturePlan {
       congestion,
       source: "test",
     },
-    origin: office,
-    originLabel: "Office",
-    isFirstClassOfDay: true,
-    usesWake: true,
     arriveBy,
     leaveBy,
     wakeBy: new Date(leaveBy.getTime() - 50 * 60000),
     phase: "sleep",
     minutesUntilLeave: 120,
     minutesUntilWake: 70,
-    minutesUntilArrive: 160,
   };
 }
 

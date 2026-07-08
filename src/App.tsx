@@ -17,14 +17,6 @@ import {
 import { refreshPlanTiming } from "./core/departure";
 import { buildBriefing, computeConfidence } from "./core/confidence";
 import { formatClock } from "./core/time";
-import {
-  displayDestination,
-  displayItemKind,
-  isStudyItem,
-  isTestItem,
-  occurrencesOnDate,
-  type ScheduleOccurrence,
-} from "./core/schedule";
 import type {
   CalendarConnection,
   CalendarProviderId,
@@ -37,52 +29,34 @@ import { useAlarmSound } from "./hooks/useAlarmSound";
 import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
 import { useAlarmNotifications } from "./hooks/useAlarmNotifications";
 import { useBriefing } from "./hooks/useBriefing";
-import { requestLocationSample } from "./core/location";
-import {
-  notificationPermission,
-  showAlarmNotification,
-} from "./core/notifications";
 import { loadState, saveState, type AppState } from "./state/store";
 import { Icon } from "./components/Icon";
 import {
   dismissPlaceSuggestion,
   rememberPlaceUsage,
   suggestPlaces,
-  type PlaceSuggestion,
 } from "./core/placeHistory";
 import type { PlaceUsageContext, Weekday } from "./core/types";
 
 type Tab = "alarm" | "commitments" | "settings";
 
 const CALENDAR_FALLBACK_DESTINATION: Place = {
-  id: "calendar-fallback-campus",
-  label: "Campus building",
-  lat: 37.4275,
-  lng: -122.1697,
+  id: "calendar-fallback-office",
+  label: "Office — Financial District",
+  lat: 37.7946,
+  lng: -122.3999,
 };
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [tab, setTab] = useState<Tab>("alarm");
-  const [originOverride, setOriginOverride] = useState<Place | null>(null);
-  const [originOverrideSource, setOriginOverrideSource] = useState<
-    "manual" | "live" | "campus" | null
-  >(null);
-  const [checkingOrigin, setCheckingOrigin] = useState(false);
-  const [originMessage, setOriginMessage] = useState<string | null>(null);
   const { now, control } = useClock();
 
   useEffect(() => {
     saveState(state);
   }, [state]);
 
-  const planResult = usePlan(
-    state.commitments,
-    state.settings,
-    now,
-    originOverride,
-    originOverrideSource,
-  );
+  const planResult = usePlan(state.commitments, state.settings, now);
 
   // Keep the plan's countdown/phase live every tick without refetching.
   const livePlan = useMemo(() => {
@@ -99,7 +73,6 @@ export default function App() {
   useAlarmSound(livePlan?.phase ?? null, state.settings.soundEnabled);
   const liveDepartureStatus = useLiveDepartureStatus(livePlan, state.settings, now);
   useAlarmNotifications(livePlan, state.settings.notificationsEnabled, now);
-  const lateAlertRef = useRef<string | null>(null);
   const importedEventCount = state.calendarConnections.reduce(
     (total, connection) => total + (connection.connected ? connection.eventCount : 0),
     0,
@@ -109,18 +82,10 @@ export default function App() {
     weekday: now.getDay() as Weekday,
     hour: now.getHours(),
   };
-  const destinationContext = {
+  const destinationSuggestions = suggestPlaces(state.placeHistory, {
     ...nowPlaceContext,
-    kind: "destination" as const,
-  };
-  const destinationSuggestions = [
-    ...favoriteBuildingSuggestions(state.settings.favoriteBuildings ?? []),
-    ...suggestPlaces(state.placeHistory, destinationContext),
-  ];
-  const todayOccurrences = useMemo(
-    () => occurrencesOnDate(state.commitments, now, state.settings),
-    [state.commitments, state.settings, now.toDateString()],
-  );
+    kind: "destination",
+  });
 
   const rememberPlace = (place: Place, context: PlaceUsageContext) => {
     setState((s) => ({
@@ -143,86 +108,6 @@ export default function App() {
   const onBrief = () => {
     if (livePlan && confidence) briefing.speak(buildBriefing(livePlan, confidence));
   };
-
-  const useCurrentOrigin = async (source: "manual" | "live" = "manual") => {
-    setCheckingOrigin(true);
-    try {
-      const sample = await requestLocationSample();
-      setOriginOverride(sample.place);
-      setOriginOverrideSource(source);
-      setOriginMessage(
-        `Planning from current location, accurate to about ${Math.round(
-          sample.accuracyMeters,
-        )} m.`,
-      );
-    } catch (error) {
-      setOriginMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not read current location.",
-      );
-    } finally {
-      setCheckingOrigin(false);
-    }
-  };
-
-  const useCampusOrigin = () => {
-    if (!state.settings.campus) return;
-    setOriginOverride(state.settings.campus);
-    setOriginOverrideSource("campus");
-    setOriginMessage(`Planning as if you are already at ${state.settings.campus.label}.`);
-  };
-
-  const useDestinationOrigin = () => {
-    if (!livePlan) return;
-    setOriginOverride(livePlan.commitment.destination);
-    setOriginOverrideSource("manual");
-    setOriginMessage(
-      `Planning as if you are already at ${displayDestination(livePlan.commitment)}.`,
-    );
-  };
-
-  const clearOriginOverride = () => {
-    setOriginOverride(null);
-    setOriginOverrideSource(null);
-    setOriginMessage(null);
-  };
-
-  useEffect(() => {
-    if (!state.settings.locationTrackingEnabled) {
-      if (originOverrideSource === "live") clearOriginOverride();
-      return;
-    }
-
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const sample = await requestLocationSample();
-        if (cancelled) return;
-        setOriginOverride(sample.place);
-        setOriginOverrideSource("live");
-        setOriginMessage(
-          `Live checks are planning from current location, accurate to about ${Math.round(
-            sample.accuracyMeters,
-          )} m.`,
-        );
-      } catch (error) {
-        if (cancelled) return;
-        setOriginMessage(
-          error instanceof Error
-            ? error.message
-            : "Could not refresh current location.",
-        );
-      }
-    };
-    void refresh();
-    const id = window.setInterval(refresh, 5 * 60 * 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.settings.locationTrackingEnabled]);
 
   // Speak the briefing automatically the moment the wake phase begins.
   const briefedRef = useRef<string | null>(null);
@@ -266,29 +151,6 @@ export default function App() {
     const id = window.setTimeout(() => setReplan(null), 5200);
     return () => window.clearTimeout(id);
   }, [replan]);
-
-  useEffect(() => {
-    if (
-      !state.settings.notificationsEnabled ||
-      notificationPermission() !== "granted" ||
-      !livePlan ||
-      liveDepartureStatus.kind !== "still-home"
-    ) {
-      return;
-    }
-    const key = `${livePlan.commitment.id}:${livePlan.arriveBy.toISOString()}:late`;
-    if (lateAlertRef.current === key) return;
-    lateAlertRef.current = key;
-    void showAlarmNotification({
-      title: `You have not left. ETA ${formatClock(liveDepartureStatus.arrival)}`,
-      body: `${livePlan.commitment.title} starts at ${formatClock(livePlan.arriveBy)}.`,
-      tag: `headstart-late-${livePlan.commitment.id}-${livePlan.arriveBy.getTime()}`,
-    });
-  }, [
-    state.settings.notificationsEnabled,
-    liveDepartureStatus,
-    livePlan,
-  ]);
 
   const importCalendarCommitments = (
     provider: CalendarProviderId,
@@ -403,8 +265,8 @@ export default function App() {
             <Icon name="alarm" size={22} strokeWidth={1.8} />
           </span>
           <div>
-            <h1 className="brand-title">HeadStart</h1>
-            <p className="brand-tag">Know where to go next.</p>
+            <h1 className="brand-title">Departure</h1>
+            <p className="brand-tag">Wake up exactly when you need to.</p>
           </div>
         </div>
         <nav className="tabs" aria-label="Sections" role="tablist">
@@ -418,7 +280,7 @@ export default function App() {
               className={`tab ${tab === t ? "tab-active" : ""}`}
               onClick={() => setTab(t)}
             >
-              {t === "alarm" ? "Now" : t === "commitments" ? "Schedule" : "Settings"}
+              {t === "alarm" ? "Alarm" : t === "commitments" ? "Commitments" : "Settings"}
             </button>
           ))}
         </nav>
@@ -461,24 +323,12 @@ export default function App() {
                   settings={state.settings}
                   liveStatus={liveDepartureStatus}
                   onReviewLocationConsent={() => setTab("settings")}
-                  originOverride={originOverride}
-                  originOverrideSource={originOverrideSource}
-                  originMessage={originMessage}
-                  checkingOrigin={checkingOrigin}
-                  onUseCurrentOrigin={() => void useCurrentOrigin("manual")}
-                  onUseCampusOrigin={state.settings.campus ? useCampusOrigin : undefined}
-                  onUseDestinationOrigin={useDestinationOrigin}
-                  onClearOriginOverride={clearOriginOverride}
                   confidence={confidence}
                   briefing={{
                     supported: briefing.supported,
                     speaking: briefing.speaking,
                     onBrief: briefing.speaking ? briefing.stop : onBrief,
                   }}
-                />
-                <TodayStrip
-                  occurrences={todayOccurrences}
-                  activeId={livePlan.commitment.id}
                 />
                 <DemoBar control={control} plan={livePlan} now={now} />
               </>
@@ -488,16 +338,14 @@ export default function App() {
 
         {tab === "commitments" && (
           <div className="panel">
-            <h2 className="panel-title">Schedule</h2>
+            <h2 className="panel-title">Commitments</h2>
             <p className="muted panel-lead">
-              Add classes, tests, events, and study sessions. HeadStart handles
-              prep, campus travel, and when to leave.
+              Add where you need to be. Departure handles when to wake and leave.
             </p>
             <CommitmentForm
               commitments={state.commitments}
-              settings={state.settings}
               placeSuggestions={destinationSuggestions}
-              searchBias={state.settings.campus ?? state.settings.home}
+              searchBias={state.settings.home}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
               onDismissPlaceSuggestion={hidePlaceSuggestion}
               onChange={(commitments) =>
@@ -546,8 +394,8 @@ export default function App() {
         <span className="footer-source">
           <Icon name="route" size={14} />
           {state.settings.trafficProvider === "google" && state.settings.apiKey
-            ? "Live routing · Google Routes"
-            : "Campus routing simulation"}
+            ? "Live traffic · Google Routes"
+            : "Offline traffic simulation"}
         </span>
         <span className="clock">{now.toLocaleTimeString()}</span>
       </footer>
@@ -579,19 +427,6 @@ function updateCalendarConnection(
   return updated;
 }
 
-function favoriteBuildingSuggestions(favorites: Place[]): PlaceSuggestion[] {
-  const now = new Date().toISOString();
-  return favorites.map((place) => ({
-    historyId: `favorite-${place.id}`,
-    place,
-    reason: "favorite",
-    label: "Favorite",
-    useCount: Number.MAX_SAFE_INTEGER,
-    lastUsedAt: now,
-    dismissible: false,
-  }));
-}
-
 function EmptyState({
   phase,
   goto,
@@ -605,12 +440,10 @@ function EmptyState({
         <span className="placeholder-icon">
           <Icon name="pin" size={30} strokeWidth={1.5} />
         </span>
-        <h2>Where do you start before first class?</h2>
-        <p className="muted">
-          Add your dorm/home or campus so we can measure the first trip.
-        </p>
+        <h2>Where do you start your day?</h2>
+        <p className="muted">Set your home location so we can measure the trip.</p>
         <button className="add-button" onClick={() => goto("settings")}>
-          Add home/dorm or campus
+          Set home location
         </button>
       </div>
     );
@@ -620,85 +453,16 @@ function EmptyState({
       <span className="placeholder-icon">
         <Icon name="sunrise" size={30} strokeWidth={1.5} />
       </span>
-      <h2>Add your first class</h2>
+      <h2>No upcoming commitments</h2>
       <p className="muted">
-        Build your class schedule, then HeadStart will show where to go next.
+        Add something you need to arrive at and we'll wake you in time.
       </p>
       <button className="add-button" onClick={() => goto("commitments")}>
         <Icon name="plus" size={17} />
-        Add class or event
+        Add a commitment
       </button>
     </div>
   );
-}
-
-function TodayStrip({
-  occurrences,
-  activeId,
-}: {
-  occurrences: ScheduleOccurrence[];
-  activeId: string;
-}) {
-  if (occurrences.length === 0) return null;
-  return (
-    <section className="today-strip" aria-label="Today at a glance">
-      <div className="today-strip-head">
-        <strong>Today</strong>
-        <span>{occurrences.length} schedule item{occurrences.length === 1 ? "" : "s"}</span>
-      </div>
-      <div className="today-strip-row">
-        {occurrences.slice(0, 6).flatMap(({ commitment, arriveBy }, index, list) => {
-          const active = commitment.id === activeId;
-          const kind = displayItemKind(commitment);
-          const next = list[index + 1];
-          const gapMinutes = next
-            ? Math.round(
-                (next.arriveBy.getTime() -
-                  (arriveBy.getTime() + todayItemDuration(commitment) * 60_000)) /
-                  60_000,
-              )
-            : 0;
-          const item = (
-            <div
-              key={`${commitment.id}-${arriveBy.toISOString()}`}
-              className={`today-pill ${active ? "today-pill-active" : ""} ${
-                isStudyItem(commitment) ? "today-pill-study" : ""
-              } ${isTestItem(commitment) ? "today-pill-test" : ""}`}
-            >
-              <span>{formatClock(arriveBy)}</span>
-              <strong>{commitment.title || kind}</strong>
-              <small>{displayDestination(commitment)}</small>
-            </div>
-          );
-          if (gapMinutes < 30 || !next) return [item];
-          return [
-            item,
-            <div
-              key={`gap-${commitment.id}-${next.commitment.id}-${arriveBy.toISOString()}`}
-              className="today-pill today-pill-gap"
-            >
-              <span>Gap</span>
-              <strong>{formatGap(gapMinutes)}</strong>
-              <small>Free time</small>
-            </div>,
-          ];
-        })}
-      </div>
-    </section>
-  );
-}
-
-function todayItemDuration(commitment: Commitment): number {
-  if (isStudyItem(commitment)) return commitment.study?.plannedMinutes ?? 45;
-  if (isTestItem(commitment)) return 90;
-  return 55;
-}
-
-function formatGap(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
 function SetupChecklist({
@@ -724,21 +488,18 @@ function SetupChecklist({
   const items = [
     {
       label: "Start location",
-      detail:
-        settings.home?.label ??
-        settings.campus?.label ??
-        "Set dorm/home or campus",
-      done: Boolean(settings.home || settings.campus),
+      detail: settings.home ? settings.home.label : "Set where you leave from",
+      done: Boolean(settings.home),
       tab: "settings" as Tab,
     },
     {
-      label: "Class schedule",
+      label: "Reviewed commitment",
       detail:
         reviewedCommitments.length > 0
           ? `${reviewedCommitments.length} ready`
           : needsReview
-            ? "Calendar building needs review"
-            : "Add your first class or event",
+            ? "Calendar location needs review"
+            : "Add your first place and time",
       done: reviewedCommitments.length > 0,
       tab: "commitments" as Tab,
     },
@@ -747,23 +508,23 @@ function SetupChecklist({
       detail:
         connectedCalendars.length > 0
           ? `${connectedCalendars.length} connected`
-          : "Optional, useful for school calendars",
+          : "Optional, but useful for real mornings",
       done: connectedCalendars.length > 0,
       tab: "commitments" as Tab,
     },
     {
-      label: "Alerts tested",
+      label: "Alarm tested",
       detail: settings.notificationsEnabled
         ? "Browser notifications enabled"
-        : "Test sound, notification, and calendar backup",
+        : "Test sound, notification, and backup",
       done: settings.notificationsEnabled,
       tab: "settings" as Tab,
     },
     {
-      label: "Late check",
+      label: "Leave check",
       detail: settings.locationTrackingEnabled
         ? "Location verified"
-        : "Optional still-at-start ETA updates",
+        : "Optional missed-departure safety net",
       done: settings.locationTrackingEnabled,
       tab: "settings" as Tab,
     },

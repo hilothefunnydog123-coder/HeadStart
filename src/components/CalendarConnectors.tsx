@@ -48,7 +48,7 @@ const PROVIDERS: {
   },
   {
     id: "apple",
-    name: "Apple Calendar",
+    name: "Apple Calendar file",
     mark: "A",
     description:
       "Apple Calendar does not offer Google-style web calendar sign-in here. Import a private .ics file, or use a future CalDAV/backend connector.",
@@ -95,6 +95,10 @@ export function CalendarConnectors({
   const importFromGoogle = async () => {
     const clientId = (ENV_GOOGLE_CLIENT_ID || localGoogleClientId).trim();
     if (!clientId) {
+      onError(
+        "google",
+        "Add a Google OAuth web client ID for local testing, or set VITE_GOOGLE_CLIENT_ID in production.",
+      );
       return;
     }
 
@@ -123,6 +127,12 @@ export function CalendarConnectors({
   const connectWithCalendarConnector = (provider: CalendarProviderId) => {
     const trimmed = connectorUrl.trim().replace(/\/$/, "");
     if (!trimmed) {
+      onError(
+        provider,
+        provider === "apple"
+          ? "Apple Calendar sign-in needs a secure calendar connector backend. Import .ics for now, or set VITE_CALENDAR_CONNECTOR_URL."
+          : "Set VITE_CALENDAR_CONNECTOR_URL to use a backend calendar connector.",
+      );
       return;
     }
     const returnTo = encodeURIComponent(window.location.href);
@@ -161,7 +171,7 @@ export function CalendarConnectors({
       <div className="section-heading">
         <div>
           <h3>Calendar import</h3>
-          <p className="muted">Imported events become editable schedule items.</p>
+          <p className="muted">Imported events become editable commitments.</p>
         </div>
       </div>
 
@@ -172,11 +182,6 @@ export function CalendarConnectors({
           const isGoogle = provider.id === "google";
           const googleReady = Boolean(ENV_GOOGLE_CLIENT_ID || localGoogleClientId.trim());
           const isApple = provider.id === "apple";
-          const googleNeedsSetup = isGoogle && !googleReady;
-          const appleNeedsSetup = isApple && !connectorUrl.trim();
-          const visibleError = setupOnlyError(connection.error)
-            ? undefined
-            : connection.error;
 
           return (
             <article key={provider.id} className="connector-card">
@@ -201,12 +206,7 @@ export function CalendarConnectors({
                   <button
                     type="button"
                     className="primary-button"
-                    disabled={busy || googleNeedsSetup}
-                    title={
-                      googleNeedsSetup
-                        ? "Add a Google OAuth client ID to enable sign-in."
-                        : undefined
-                    }
+                    disabled={busy}
                     onClick={() => void importFromGoogle()}
                   >
                     {busy
@@ -220,12 +220,7 @@ export function CalendarConnectors({
                   <button
                     type="button"
                     className="primary-button"
-                    disabled={busy || appleNeedsSetup}
-                    title={
-                      appleNeedsSetup
-                        ? "Add a secure connector URL to enable Apple sign-in."
-                        : undefined
-                    }
+                    disabled={busy}
                     onClick={() => connectWithCalendarConnector("apple")}
                   >
                     Connect Apple
@@ -257,7 +252,6 @@ export function CalendarConnectors({
                 }}
                 className="visually-hidden"
                 type="file"
-                aria-label={`Import ${provider.name} .ics file`}
                 accept=".ics,text/calendar"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -284,9 +278,8 @@ export function CalendarConnectors({
                     />
                   </label>
                   <p className="connector-meta">
-                    Add a client ID to enable Google sign-in here. Production
-                    builds should set VITE_GOOGLE_CLIENT_ID so students can
-                    connect without pasting setup values.
+                    Production builds should set VITE_GOOGLE_CLIENT_ID so users
+                    can connect without pasting setup values.
                   </p>
                 </div>
               )}
@@ -303,13 +296,13 @@ export function CalendarConnectors({
                   </label>
                   <p className="connector-meta">
                     Apple does not expose Google-style web calendar OAuth to
-                    static frontends. Add a secure backend connector to enable
-                    sign-in, or import a private .ics file.
+                    static frontends. Use a secure backend connector, or import a
+                    private .ics file.
                   </p>
                 </div>
               )}
-              {visibleError && (
-                <p className="field-error connector-error">{visibleError}</p>
+              {connection.error && (
+                <p className="field-error connector-error">{connection.error}</p>
               )}
             </article>
           );
@@ -339,14 +332,4 @@ function connectionFor(
 function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
-}
-
-function setupOnlyError(message: string | undefined): boolean {
-  return Boolean(
-    message &&
-      (/Google OAuth web client ID/i.test(message) ||
-        /VITE_GOOGLE_CLIENT_ID/i.test(message) ||
-        /secure calendar connector backend/i.test(message) ||
-        /VITE_CALENDAR_CONNECTOR_URL/i.test(message)),
-  );
 }

@@ -62,39 +62,10 @@ describe("alarm notification scheduling", () => {
     const notifications = alarmNotificationsForPlan(plan);
 
     expect(notifications).toHaveLength(2);
-    expect(notifications[0]?.title).toBe("Start prep for first class");
+    expect(notifications[0]?.title).toBe("Time to wake up");
     expect(notifications[0]?.body).toContain("Chem lab");
-    expect(notifications[1]?.title).toBe("Leave for Chem lab");
+    expect(notifications[1]?.title).toBe("Time to leave");
     expect(notifications[1]?.body).toContain("Office");
-  });
-
-  it("uses study-first wording for study sessions", () => {
-    const studyPlan = buildPlan({
-      commitment: {
-        ...commitment,
-        id: "study",
-        title: "Study Chem",
-        itemType: "study",
-        study: {
-          relatedTestId: "chem-final",
-          testTitle: "Chem final",
-          testDate: "2026-07-10",
-          plannedMinutes: 45,
-          status: "planned",
-        },
-      },
-      arriveBy: new Date(2026, 6, 8, 10, 0, 0),
-      estimate,
-      settings,
-      now: new Date(2026, 6, 8, 8, 0, 0),
-      usesWake: false,
-    });
-
-    const notifications = alarmNotificationsForPlan(studyPlan);
-
-    expect(notifications[0]?.title).toBe("Leave for Study Chem in 5m");
-    expect(notifications[1]?.title).toBe("Study Chem now");
-    expect(notifications[1]?.body).toContain("Chem final");
   });
 
   it("classifies future, due, and expired delivery windows", () => {

@@ -196,7 +196,7 @@ export function PlacePicker({
 
       <form className="place-search" onSubmit={(event) => void runSearch(event)}>
         <label className="field place-search-field">
-          <span>Place search</span>
+          <span>Search</span>
           <div className="search-control">
             <Icon name="search" size={17} />
             <input
@@ -254,7 +254,7 @@ export function PlacePicker({
                   <span>{suggestion.place.label}</span>
                   <small>{suggestion.label}</small>
                 </button>
-                {onDismissSuggestion && suggestion.dismissible !== false && (
+                {onDismissSuggestion && (
                   <button
                     type="button"
                     className="suggestion-dismiss"

@@ -1,12 +1,11 @@
 import type { DeparturePlan } from "./types";
-import { displayDestination } from "./schedule";
 
 const REMINDER_DURATION_MINUTES = 5;
 
 export function systemReminderFileName(plan: DeparturePlan): string {
   const date = plan.arriveBy.toISOString().slice(0, 10);
-  const title = slug(plan.commitment.title || "schedule");
-  return `headstart-reminders-${date}-${title}.ics`;
+  const title = slug(plan.commitment.title || "departure");
+  return `departure-reminders-${date}-${title}.ics`;
 }
 
 export function systemReminderCalendar(
@@ -17,16 +16,14 @@ export function systemReminderCalendar(
     {
       key: "wake",
       at: plan.wakeBy,
-      summary: plan.usesWake
-        ? `Prep for ${plan.commitment.title}`
-        : `Get ready for ${plan.commitment.title}`,
+      summary: `Wake up for ${plan.commitment.title}`,
       description: `Leave by ${timeLabel(plan.leaveBy)} for ${plan.commitment.title}.`,
     },
     {
       key: "leave",
       at: plan.leaveBy,
       summary: `Leave for ${plan.commitment.title}`,
-      description: `Head to ${displayDestination(plan.commitment)}. Arrive by ${timeLabel(
+      description: `Head to ${plan.commitment.destination.label}. Arrive by ${timeLabel(
         plan.arriveBy,
       )}.`,
     },
@@ -35,7 +32,7 @@ export function systemReminderCalendar(
   return lines([
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//HeadStart//Student Schedule Assistant//EN",
+    "PRODID:-//Departure//Smart Departure Alarm//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     ...events.flatMap((event) => [

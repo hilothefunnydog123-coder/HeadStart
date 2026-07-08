@@ -3,23 +3,10 @@ import type {
   CalendarProviderId,
   Commitment,
   PlaceUsageContext,
-  Settings,
-  TestDifficulty,
   TravelMode,
   Weekday,
 } from "../core/types";
 import type { PlaceSuggestion } from "../core/placeHistory";
-import {
-  createStudySessionsForTest,
-  createTestAndStudyItems,
-  displayDestination,
-  displayItemKind,
-  isClassItem,
-  isStudyItem,
-  isTestItem,
-  itemType,
-  rescheduleStudySession,
-} from "../core/schedule";
 import {
   WEEKDAY_LABELS,
   isoDate,
@@ -33,7 +20,6 @@ import { Icon, MODE_ICON } from "./Icon";
 interface Props {
   commitments: Commitment[];
   onChange: (commitments: Commitment[]) => void;
-  settings: Settings;
   placeSuggestions: PlaceSuggestion[];
   searchBias: Commitment["destination"] | null;
   onPlaceSelected: (place: Commitment["destination"], context: PlaceUsageContext) => void;
@@ -44,21 +30,10 @@ interface Props {
 }
 
 const MODES: { value: TravelMode; label: string }[] = [
-  { value: "walk", label: "Walk" },
   { value: "drive", label: "Drive" },
   { value: "transit", label: "Transit" },
   { value: "cycle", label: "Cycle" },
-];
-const ITEM_TYPES: Array<{ value: NonNullable<Commitment["itemType"]>; label: string }> = [
-  { value: "class", label: "Class" },
-  { value: "event", label: "Event" },
-  { value: "test", label: "Test" },
-  { value: "study", label: "Study" },
-];
-const DIFFICULTIES: Array<{ value: TestDifficulty; label: string; minutes: number }> = [
-  { value: "light", label: "Light", minutes: 90 },
-  { value: "standard", label: "Standard", minutes: 180 },
-  { value: "heavy", label: "Heavy", minutes: 360 },
+  { value: "walk", label: "Walk" },
 ];
 
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
@@ -68,25 +43,22 @@ function blankCommitment(): Commitment {
   return {
     id: makeId("cmt"),
     title: "",
-    itemType: "class",
     destination: {
       id: makeId("place"),
-      label: "Choose a building",
+      label: "Choose a destination",
       lat: 0,
       lng: 0,
     },
-    travelMode: "walk",
+    travelMode: "drive",
     arriveByMinutes: 9 * 60,
     days: [1, 2, 3, 4, 5],
     enabled: false,
-    originStrategy: "previous",
   };
 }
 
 export function CommitmentForm({
   commitments,
   onChange,
-  settings,
   placeSuggestions,
   searchBias,
   onPlaceSelected,
@@ -94,14 +66,13 @@ export function CommitmentForm({
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stepById, setStepById] = useState<Record<string, CommitmentStep>>({});
-  const [plannerClassId, setPlannerClassId] = useState<string>("");
 
   const update = (id: string, patch: Partial<Commitment>) =>
     onChange(commitments.map((c) => (c.id === id ? { ...c, ...patch } : c)));
 
   const remove = (id: string) => {
     const commitment = commitments.find((c) => c.id === id);
-    const name = commitment?.title || "this schedule item";
+    const name = commitment?.title || "this commitment";
     if (window.confirm(`Delete ${name}?`)) {
       onChange(commitments.filter((c) => c.id !== id));
     }
@@ -133,7 +104,6 @@ export function CommitmentForm({
   ) => {
     update(c.id, {
       destination,
-      buildingName: c.buildingName || destination.label.split(",")[0]?.trim(),
       enabled: true,
       source: c.source
         ? { ...c.source, needsLocationReview: false }
@@ -156,40 +126,27 @@ export function CommitmentForm({
   return (
     <div className="commitments">
       {commitments.length === 0 && (
-        <p className="muted">No classes yet. Add your first one below.</p>
+        <p className="muted">No commitments yet. Add your first one below.</p>
       )}
-
-      <TestPlanner
-        commitments={commitments}
-        settings={settings}
-        selectedClassId={plannerClassId}
-        onSelectedClassChange={setPlannerClassId}
-        onChange={onChange}
-      />
-      <StudyWarnings commitments={commitments} />
-      <ConflictWarnings commitments={commitments} />
 
       {visibleCommitments.map((c) => {
         const open = expandedId === c.id;
         const step = stepById[c.id] ?? "when";
         const needsDestination = isDraftDestination(c);
         const isOneOff = c.days.length === 0;
-        const relatedStudySessions = commitments.filter(
-          (item) => isStudyItem(item) && item.study?.relatedTestId === c.id,
-        );
         return (
           <div
             key={c.id}
-            className={`commitment-row schedule-type-${itemType(c)} ${
-              c.enabled ? "" : "disabled"
-            } ${open ? "expanded" : ""}`}
+            className={`commitment-row ${c.enabled ? "" : "disabled"} ${
+              open ? "expanded" : ""
+            }`}
           >
             <div className="commitment-head">
               <label className="switch" title={c.enabled ? "Enabled" : "Disabled"}>
                 <input
                   type="checkbox"
                   aria-label={`${c.enabled ? "Disable" : "Enable"} ${
-                    c.title || "draft schedule item"
+                    c.title || "draft commitment"
                   }`}
                   checked={c.enabled}
                   disabled={needsDestination}
@@ -206,14 +163,13 @@ export function CommitmentForm({
                 onClick={() => setExpandedId(open ? null : c.id)}
                 aria-expanded={open}
               >
-                <strong>{c.title || "New class"}</strong>
+                <strong>{c.title || "New commitment"}</strong>
                 <span className="muted">
-                  <span className="type-badge">{displayItemKind(c)}</span>
-                  {c.enabled ? "" : " Draft · "}
+                  {c.enabled ? "" : "Draft · "}
                   {minutesToTimeString(c.arriveByMinutes)} ·{" "}
                   {needsDestination
-                    ? "add building"
-                    : displayDestination(c)}
+                    ? "add destination"
+                    : c.destination.label}
                 </span>
                 {c.source?.kind === "calendar" && (
                   <span
@@ -222,7 +178,7 @@ export function CommitmentForm({
                     }`}
                   >
                     {providerLabel(c.source.provider)}
-                    {c.source.needsLocationReview ? " · Needs building review" : ""}
+                    {c.source.needsLocationReview ? " · review location" : ""}
                   </span>
                 )}
               </button>
@@ -236,7 +192,7 @@ export function CommitmentForm({
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label="Delete schedule item"
+                  aria-label="Delete commitment"
                   onClick={() => remove(c.id)}
                 >
                   <Icon name="close" size={16} />
@@ -246,50 +202,6 @@ export function CommitmentForm({
 
             {open && (
               <div className="commitment-body">
-                {isClassItem(c) && !needsDestination && (
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => setPlannerClassId(c.id)}
-                  >
-                    Plan a test for this class
-                  </button>
-                )}
-                {isTestItem(c) && (
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() =>
-                      onChange(
-                        createStudySessionsForTest(
-                          commitments,
-                          settings,
-                          c,
-                          makeId,
-                        ),
-                      )
-                    }
-                  >
-                    {relatedStudySessions.length > 0
-                      ? "Fill remaining study gaps"
-                      : "Plan study sessions for this test"}
-                  </button>
-                )}
-                {isStudyItem(c) && (
-                  <StudyStatusControls
-                    commitment={c}
-                    update={update}
-                    onReschedule={() =>
-                      onChange(
-                        commitments.map((item) =>
-                          item.id === c.id
-                            ? rescheduleStudySession(commitments, settings, c)
-                            : item,
-                        ),
-                      )
-                    }
-                  />
-                )}
                 <div className="commitment-stepper" role="tablist" aria-label="Commitment steps">
                   {COMMITMENT_STEPS.map((item) => (
                     <button
@@ -310,16 +222,16 @@ export function CommitmentForm({
                   <div className="step-panel">
                     <div className="field-grid">
                       <label className="field">
-                        <span>Name</span>
+                        <span>What is it?</span>
                         <input
                           type="text"
                           value={c.title}
-                          placeholder="Biology, practice, review session..."
+                          placeholder="Class, practice, meeting..."
                           onChange={(e) => update(c.id, { title: e.target.value })}
                         />
                       </label>
                       <label className="field">
-                        <span>Starts at</span>
+                        <span>Arrive by</span>
                         <input
                           type="time"
                           value={minutesToTimeString(c.arriveByMinutes)}
@@ -329,31 +241,6 @@ export function CommitmentForm({
                           }}
                         />
                       </label>
-                      <label className="field">
-                        <span>Course</span>
-                        <input
-                          type="text"
-                          value={c.courseId ?? ""}
-                          placeholder="BIO 101"
-                          onChange={(e) => update(c.id, { courseId: e.target.value })}
-                        />
-                      </label>
-                    </div>
-                    <div className="field">
-                      <span className="field-label">Type</span>
-                      <div className="segmented compact" role="group" aria-label="Schedule item type">
-                        {ITEM_TYPES.map((item) => (
-                          <button
-                            key={item.value}
-                            type="button"
-                            className={`segment ${(c.itemType ?? "class") === item.value ? "on" : ""}`}
-                            onClick={() => update(c.id, { itemType: item.value })}
-                            aria-pressed={(c.itemType ?? "class") === item.value}
-                          >
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                     <StepActions onNext={() => setStep(c.id, "where")} />
                   </div>
@@ -362,7 +249,7 @@ export function CommitmentForm({
                 {step === "where" && (
                   <div className="step-panel">
                     <PlacePicker
-                      label="Building"
+                      label="Destination"
                       value={
                         needsDestination
                           ? null
@@ -378,26 +265,6 @@ export function CommitmentForm({
                         onPlaceSelected(place, currentPlaceContext(c))
                       }
                     />
-                    <div className="field-grid">
-                      <label className="field">
-                        <span>Building name</span>
-                        <input
-                          type="text"
-                          value={c.buildingName ?? ""}
-                          placeholder="Science Hall"
-                          onChange={(e) => update(c.id, { buildingName: e.target.value })}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>Room</span>
-                        <input
-                          type="text"
-                          value={c.room ?? ""}
-                          placeholder="204"
-                          onChange={(e) => update(c.id, { room: e.target.value })}
-                        />
-                      </label>
-                    </div>
                     <StepActions
                       onBack={() => setStep(c.id, "when")}
                       onNext={() => setStep(c.id, "travel")}
@@ -527,7 +394,7 @@ export function CommitmentForm({
               type="button"
               className="link-button danger-link"
               onClick={() => {
-                if (window.confirm("Discard incomplete draft schedule items?")) {
+                if (window.confirm("Discard incomplete draft commitments?")) {
                   onChange(commitments.filter((c) => !isIncompleteDraft(c)));
                 }
               }}
@@ -540,317 +407,7 @@ export function CommitmentForm({
 
       <button type="button" className="add-button" onClick={add}>
         <Icon name="plus" size={17} />
-        Add class or event
-      </button>
-    </div>
-  );
-}
-
-function TestPlanner({
-  commitments,
-  settings,
-  selectedClassId,
-  onSelectedClassChange,
-  onChange,
-}: {
-  commitments: Commitment[];
-  settings: Settings;
-  selectedClassId: string;
-  onSelectedClassChange: (id: string) => void;
-  onChange: (commitments: Commitment[]) => void;
-}) {
-  const classes = commitments.filter((item) => isClassItem(item) && item.enabled);
-  const [title, setTitle] = useState("");
-  const [testDate, setTestDate] = useState(defaultOneOffDate());
-  const [testTime, setTestTime] = useState("09:00");
-  const [difficulty, setDifficulty] = useState<TestDifficulty>("standard");
-  const selectedDifficulty =
-    DIFFICULTIES.find((item) => item.value === difficulty) ?? {
-      value: "standard" as TestDifficulty,
-      label: "Standard",
-      minutes: 180,
-    };
-  const [targetHours, setTargetHours] = useState(
-    String((settings.defaultStudyMinutes ?? selectedDifficulty.minutes) / 60),
-  );
-
-  const addPlan = () => {
-    const testTimeMinutes = parseTimeToMinutes(testTime) ?? 9 * 60;
-    const targetStudyMinutes = Math.max(30, Math.round(Number(targetHours) * 60));
-    onChange(
-      createTestAndStudyItems(
-        commitments,
-        settings,
-        {
-          relatedClassId: selectedClassId || undefined,
-          title,
-          testDate,
-          testTimeMinutes,
-          targetStudyMinutes,
-          difficulty,
-        },
-        makeId,
-      ),
-    );
-    setTitle("");
-  };
-
-  return (
-    <section className="study-planner" aria-labelledby="study-planner-heading">
-      <div>
-        <h3 id="study-planner-heading">Tests & study</h3>
-        <p className="muted">
-          Add a test date and HeadStart will create study sessions in open gaps.
-        </p>
-      </div>
-      <div className="field-grid">
-        <label className="field">
-          <span>Class</span>
-          <select
-            value={selectedClassId}
-            onChange={(event) => onSelectedClassChange(event.target.value)}
-          >
-            <option value="">General test</option>
-            {classes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.courseId ? `${item.courseId} · ` : ""}
-                {item.title || "Untitled class"}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Test name</span>
-          <input
-            type="text"
-            value={title}
-            placeholder="Bio midterm"
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Date</span>
-          <input
-            type="date"
-            value={testDate}
-            onChange={(event) => setTestDate(event.target.value || defaultOneOffDate())}
-          />
-        </label>
-        <label className="field">
-          <span>Time (optional)</span>
-          <input
-            type="time"
-            value={testTime}
-            onChange={(event) => setTestTime(event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Study hours</span>
-          <input
-            type="number"
-            min={0.5}
-            step={0.5}
-            value={targetHours}
-            onChange={(event) => setTargetHours(event.target.value)}
-          />
-        </label>
-      </div>
-      <div className="segmented compact" role="group" aria-label="Test difficulty">
-        {DIFFICULTIES.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            className={`segment ${difficulty === item.value ? "on" : ""}`}
-            onClick={() => {
-              setDifficulty(item.value);
-              setTargetHours(String(item.minutes / 60));
-            }}
-            aria-pressed={difficulty === item.value}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <button type="button" className="secondary-button" onClick={addPlan}>
-        Add test + study plan
-      </button>
-    </section>
-  );
-}
-
-function StudyWarnings({ commitments }: { commitments: Commitment[] }) {
-  const warnings = commitments
-    .filter((item) => isTestItem(item) && item.enabled && item.test)
-    .flatMap((test) => studyWarningsForTest(test, commitments));
-
-  if (warnings.length === 0) return null;
-
-  return (
-    <section className="study-warning-list" aria-label="Study warnings">
-      {warnings.map((warning) => (
-        <div key={warning} className="study-warning">
-          <Icon name="alarm" size={16} />
-          <span>{warning}</span>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function ConflictWarnings({ commitments }: { commitments: Commitment[] }) {
-  const conflicts = scheduleConflicts(commitments);
-  if (conflicts.length === 0) return null;
-  return (
-    <section className="study-warning-list" aria-label="Schedule conflicts">
-      {conflicts.slice(0, 4).map((conflict) => (
-        <div key={conflict} className="study-warning schedule-conflict-warning">
-          <Icon name="route" size={16} />
-          <span>{conflict}</span>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function scheduleConflicts(commitments: Commitment[]): string[] {
-  const active = commitments.filter(
-    (item) => item.enabled && !item.source?.needsLocationReview,
-  );
-  const warnings: string[] = [];
-  for (let i = 0; i < active.length; i++) {
-    for (let j = i + 1; j < active.length; j++) {
-      const first = active[i]!;
-      const second = active[j]!;
-      const dayLabel = sharedScheduleDay(first, second);
-      if (!dayLabel) continue;
-      if (!overlaps(first, second)) continue;
-      warnings.push(
-        `${first.title || displayItemKind(first)} overlaps ${
-          second.title || displayItemKind(second)
-        } on ${dayLabel}.`,
-      );
-    }
-  }
-  return warnings;
-}
-
-function sharedScheduleDay(first: Commitment, second: Commitment): string | null {
-  if (first.oneOffDate && second.oneOffDate) {
-    return first.oneOffDate === second.oneOffDate ? shortDate(first.oneOffDate) : null;
-  }
-  if (first.oneOffDate) {
-    const day = weekdayForIso(first.oneOffDate);
-    return day != null && second.days.includes(day) ? shortDate(first.oneOffDate) : null;
-  }
-  if (second.oneOffDate) {
-    const day = weekdayForIso(second.oneOffDate);
-    return day != null && first.days.includes(day) ? shortDate(second.oneOffDate) : null;
-  }
-  const shared = first.days.find((day) => second.days.includes(day));
-  return shared == null ? null : WEEKDAY_LABELS[shared] ?? null;
-}
-
-function overlaps(first: Commitment, second: Commitment): boolean {
-  const firstStart = first.arriveByMinutes;
-  const firstEnd = firstStart + scheduleDuration(first);
-  const secondStart = second.arriveByMinutes;
-  const secondEnd = secondStart + scheduleDuration(second);
-  return firstStart < secondEnd && secondStart < firstEnd;
-}
-
-function scheduleDuration(commitment: Commitment): number {
-  if (isStudyItem(commitment)) return commitment.study?.plannedMinutes ?? 45;
-  if (isTestItem(commitment)) return 90;
-  return 55;
-}
-
-function weekdayForIso(iso: string): Weekday | null {
-  const [year, month, day] = iso.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day).getDay() as Weekday;
-}
-
-function studyWarningsForTest(
-  test: Commitment,
-  commitments: Commitment[],
-): string[] {
-  const target = test.test?.targetStudyMinutes ?? 0;
-  const sessions = commitments.filter(
-    (item) => isStudyItem(item) && item.study?.relatedTestId === test.id,
-  );
-  const activeSessions = sessions.filter(
-    (item) => (item.study?.status ?? "planned") === "planned",
-  );
-  const doneMinutes = sessions
-    .filter((item) => item.study?.status === "done")
-    .reduce((total, item) => total + (item.study?.plannedMinutes ?? 0), 0);
-  const activeMinutes = activeSessions.reduce(
-    (total, item) => total + (item.study?.plannedMinutes ?? 0),
-    0,
-  );
-  const remaining = Math.max(0, target - doneMinutes - activeMinutes);
-  const warnings: string[] = [];
-  const testLabel = test.title || "test";
-  const testDay = test.oneOffDate ? shortDate(test.oneOffDate) : "the test";
-
-  if (activeSessions.length > 0 && activeSessions.length < 2 && target > 90) {
-    warnings.push(
-      `Only ${activeSessions.length} study block before ${testLabel} on ${testDay}.`,
-    );
-  }
-  if (remaining > 0) {
-    warnings.push(
-      `${formatStudyMinutes(remaining)} of study still unplanned before ${testLabel}.`,
-    );
-  }
-  return warnings;
-}
-
-function shortDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  if (!year || !month || !day) return iso;
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatStudyMinutes(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`;
-}
-
-function StudyStatusControls({
-  commitment,
-  update,
-  onReschedule,
-}: {
-  commitment: Commitment;
-  update: (id: string, patch: Partial<Commitment>) => void;
-  onReschedule: () => void;
-}) {
-  const status = commitment.study?.status ?? "planned";
-  const setStatus = (next: "planned" | "done" | "skipped") => {
-    update(commitment.id, {
-      study: commitment.study
-        ? { ...commitment.study, status: next }
-        : commitment.study,
-    });
-  };
-  return (
-    <div className="study-status-row">
-      <span>Study status: {status}</span>
-      <button type="button" className="secondary-button" onClick={() => setStatus("done")}>
-        Done
-      </button>
-      <button type="button" className="secondary-button" onClick={() => setStatus("skipped")}>
-        Skipped
-      </button>
-      <button type="button" className="secondary-button" onClick={onReschedule}>
-        Reschedule later
+        New commitment
       </button>
     </div>
   );
@@ -862,7 +419,7 @@ const COMMITMENT_STEPS: {
   index: string;
 }[] = [
   { id: "when", label: "What & when", index: "1" },
-  { id: "where", label: "Building", index: "2" },
+  { id: "where", label: "Where", index: "2" },
   { id: "travel", label: "Travel & repeats", index: "3" },
 ];
 
@@ -909,7 +466,7 @@ function currentPlaceContext(commitment: Commitment): PlaceUsageContext {
 }
 
 function isDraftDestination(commitment: Commitment): boolean {
-  return commitment.destination.label === "Choose a building";
+  return commitment.destination.label === "Choose a destination";
 }
 
 function isIncompleteDraft(commitment: Commitment): boolean {
