@@ -15,6 +15,7 @@ function visualSignature(container: HTMLElement) {
     confidence: container.querySelector(".confidence-label")?.textContent,
     sourceBadge: container.querySelector(".source-badge")?.textContent,
     details: Boolean(container.querySelector(".plan-details")),
+    routeMap: Boolean(container.querySelector(".route-map-card")),
     tabs: Array.from(container.querySelectorAll(".tab")).map((tab) =>
       tab.textContent?.trim(),
     ),
@@ -88,6 +89,7 @@ describe("visual regression contracts", () => {
         "checklist": true,
         "confidence": "On-time confidence",
         "details": true,
+        "routeMap": true,
         "shell": true,
         "sourceBadge": "Offline simulation",
         "tabs": [
@@ -112,6 +114,7 @@ describe("visual regression contracts", () => {
         "checklist": true,
         "confidence": "On-time confidence",
         "details": true,
+        "routeMap": true,
         "shell": true,
         "sourceBadge": "Offline simulation",
         "tabs": [

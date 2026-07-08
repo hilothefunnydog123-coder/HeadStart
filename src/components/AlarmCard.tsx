@@ -8,6 +8,7 @@ import { TrafficSparkline } from "./TrafficSparkline";
 import { RadialTimeline } from "./RadialTimeline";
 import { ConfidenceMeter } from "./ConfidenceMeter";
 import { Icon, MODE_ICON } from "./Icon";
+import { RouteMap } from "./RouteMap";
 import type { LiveDepartureStatus } from "../hooks/useLiveDepartureStatus";
 import {
   systemReminderCalendar,
@@ -152,6 +153,12 @@ export function AlarmCard({
         status={liveStatus}
         showEnablePrompt={plan.phase === "prep" || plan.phase === "leave"}
         onReviewLocationConsent={onReviewLocationConsent}
+      />
+      <RouteMap
+        plan={plan}
+        settings={settings}
+        now={now}
+        onEnableLocation={onReviewLocationConsent}
       />
 
       {confidence && <ConfidenceMeter confidence={confidence} />}
