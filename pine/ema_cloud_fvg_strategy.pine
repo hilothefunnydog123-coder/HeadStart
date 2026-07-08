@@ -27,7 +27,7 @@ strategy("EMA Cloud + 5m/15m FVG Tap [NQ, Long]",
      overlay = true,
      initial_capital = 25000,
      default_qty_type = strategy.fixed,
-     default_qty_value = 1,
+     default_qty_value = 2,   // >= 2 contracts required for the scale-out exit mode
      commission_type = strategy.commission.cash_per_contract,
      commission_value = 1.4,
      slippage = 1,
@@ -68,7 +68,12 @@ maxStretch  = input.float(0.0,  "Max distance of close above fast EMA (ATR mult,
 grpRisk = "Risk management"
 stopBasis    = input.string("FVG bottom", "Stop placement", options = ["FVG bottom", "Slow EMA", "Lowest of both"], group = grpRisk)
 stopBufTicks = input.int(8,    "Stop buffer (ticks)",       minval = 0,               group = grpRisk)
-rMult        = input.float(2.0, "Take-profit (R multiple)", minval = 0.1, step = 0.1, group = grpRisk)
+exitStyle    = input.string("Single target", "Exit style", options = ["Single target", "Scale-out (2 targets)"], group = grpRisk)
+rMult        = input.float(2.0, "Single target: take-profit (R multiple)", minval = 0.1, step = 0.1, group = grpRisk)
+tp1R         = input.float(0.75, "Scale-out: TP1 (R)", minval = 0.1, step = 0.05, group = grpRisk)
+tp1Pct       = input.int(50,     "Scale-out: TP1 position %", minval = 10, maxval = 90, step = 10, group = grpRisk)
+tp2R         = input.float(2.5,  "Scale-out: TP2 (R)", minval = 0.2, step = 0.1, group = grpRisk)
+beAfterTp1   = input.bool(true,  "Scale-out: stop to breakeven after TP1 fills", group = grpRisk)
 exitOnFlip   = input.bool(true, "Also exit if the cloud flips bearish", group = grpRisk)
 useBE        = input.bool(false, "Move stop to breakeven", group = grpRisk)
 beTrigger    = input.float(0.6,  "└ Breakeven trigger (R)", minval = 0.1, step = 0.1, group = grpRisk)
@@ -227,9 +232,15 @@ longCond = cloudTap
      and slopeOk and thickOk and candleOk and volOk and htfOk and stretchOk
      and dayOk and cooldownOk
 
-var float trStop = na
-var float trTp   = na
-var bool  beDone = false
+scaleOut = exitStyle == "Scale-out (2 targets)"
+
+var float trStop   = na
+var float trTp     = na
+var float trTp1    = na
+var bool  beDone   = false
+var bool  tp1Done  = false
+var float entryQty = na
+var float maxQtySeen = 0.0
 
 if longCond and strategy.position_size == 0
     float baseStop = switch stopBasis
@@ -239,22 +250,48 @@ if longCond and strategy.position_size == 0
     stopPrice = baseStop - stopBufTicks * syminfo.mintick
     riskPts   = close - stopPrice
     if riskPts > 0
-        trStop := stopPrice
-        trTp   := close + rMult * riskPts
-        beDone := false
+        trStop  := stopPrice
+        trTp1   := close + tp1R * riskPts
+        trTp    := close + (scaleOut ? tp2R : rMult) * riskPts
+        beDone  := false
+        tp1Done := false
         tradesToday  += 1
         lastEntryBar := bar_index
         strategy.entry("Long", strategy.long)
-        strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
+        if scaleOut
+            strategy.exit("TP1", from_entry = "Long", qty_percent = tp1Pct, stop = trStop, limit = trTp1)
+            strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
+        else
+            strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
 
-// move the stop to breakeven once price has travelled beTrigger * R in our favor
+// track the filled entry size so a partial TP1 fill can be detected
+if strategy.position_size > 0
+    if na(entryQty)
+        entryQty := strategy.position_size
+    maxQtySeen := math.max(maxQtySeen, strategy.position_size)
+else
+    entryQty := na
+
+// scale-out: once TP1 has filled, move the runner's stop to breakeven
+if scaleOut and not tp1Done and strategy.position_size > 0 and not na(entryQty) and strategy.position_size < entryQty
+    tp1Done := true
+    if beAfterTp1
+        trStop := strategy.position_avg_price + beOffTicks * syminfo.mintick
+    strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
+
+// optional: move stop to breakeven once price has travelled beTrigger * R in our favor
 if useBE and not beDone and strategy.position_size > 0
     avgPrice = strategy.position_avg_price
     risk0    = avgPrice - trStop
     if risk0 > 0 and high >= avgPrice + beTrigger * risk0
         trStop := avgPrice + beOffTicks * syminfo.mintick
         beDone := true
-        strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
+        if scaleOut
+            if not tp1Done
+                strategy.exit("TP1", from_entry = "Long", qty_percent = tp1Pct, stop = trStop, limit = trTp1)
+            strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
+        else
+            strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
 
 if exitOnFlip and strategy.position_size > 0 and not bullCloud
     strategy.close("Long", comment = "Cloud flipped bearish")
@@ -267,7 +304,10 @@ alertcondition(longCond, "Cloud tap + FVG alignment", "Bullish EMA cloud tap ali
 // ----------------------------------------------------------------------------
 // Warn if the chart TF is too high for the 5m/15m FVG engines
 // ----------------------------------------------------------------------------
-var table warnT = table.new(position.top_right, 1, 1)
+var table warnT = table.new(position.top_right, 1, 2)
 if barstate.islast and not anyFvgTf
     table.cell(warnT, 0, 0, "Chart TF too high for 5m/15m FVGs — use a 15m chart or lower",
+         text_color = color.red, bgcolor = color.new(color.yellow, 70))
+if barstate.islast and scaleOut and maxQtySeen > 0 and maxQtySeen < 2
+    table.cell(warnT, 0, 1, "Scale-out needs order size >= 2 contracts (Properties tab)",
          text_color = color.red, bgcolor = color.new(color.yellow, 70))
