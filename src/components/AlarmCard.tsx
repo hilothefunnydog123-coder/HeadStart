@@ -1,6 +1,8 @@
 import type { DeparturePlan, PlanPhase } from "../core/types";
+import type { Settings } from "../core/types";
 import type { Confidence } from "../core/confidence";
 import { formatClock, formatDuration } from "../core/time";
+import { distanceLabel } from "../core/travelDisplay";
 import { TrafficBadge } from "./TrafficBadge";
 import { TrafficSparkline } from "./TrafficSparkline";
 import { RadialTimeline } from "./RadialTimeline";
@@ -21,6 +23,7 @@ interface BriefingControl {
 interface Props {
   plan: DeparturePlan;
   now: Date;
+  settings: Settings;
   liveStatus: LiveDepartureStatus;
   onReviewLocationConsent: () => void;
   confidence: Confidence | null;
@@ -104,6 +107,7 @@ const activeChip: Record<PlanPhase, "wake" | "leave" | "arrive" | null> = {
 export function AlarmCard({
   plan,
   now,
+  settings,
   liveStatus,
   onReviewLocationConsent,
   confidence,
@@ -112,6 +116,7 @@ export function AlarmCard({
   const h = hero(plan, liveStatus);
   const { commitment } = plan;
   const active = activeChip[plan.phase];
+  const prepMinutes = commitment.prepMinutesOverride ?? settings.prepMinutes;
 
   const chips: { key: "wake" | "leave" | "arrive"; label: string; at: Date }[] = [
     { key: "wake", label: "Wake", at: plan.wakeBy },
@@ -120,12 +125,14 @@ export function AlarmCard({
   ];
 
   return (
-    <section className={`alarm-card ${h.className}`} aria-live="polite">
+    <section className={`alarm-card ${h.className}`}>
       <div className="alarm-dial">
         <RadialTimeline plan={plan} now={now}>
-          <p className="ring-eyebrow">{h.eyebrow}</p>
-          <div className="ring-big">{h.big}</div>
-          <p className="ring-sub">{h.sub}</p>
+          <div role="status" aria-live="polite" aria-atomic="true">
+            <p className="ring-eyebrow">{h.eyebrow}</p>
+            <div className="ring-big">{h.big}</div>
+            <p className="ring-sub">{h.sub}</p>
+          </div>
         </RadialTimeline>
       </div>
 
@@ -171,7 +178,14 @@ export function AlarmCard({
       </div>
 
       <TrafficBadge estimate={plan.estimate} />
+      <PlanDetails
+        plan={plan}
+        settings={settings}
+        prepMinutes={prepMinutes}
+        now={now}
+      />
       <TrafficSparkline leaveBy={plan.leaveBy} />
+      <AlarmReliabilityNotice />
       <div className="alarm-actions">
         <button
           type="button"
@@ -183,6 +197,60 @@ export function AlarmCard({
         </button>
       </div>
     </section>
+  );
+}
+
+function PlanDetails({
+  plan,
+  settings,
+  prepMinutes,
+  now,
+}: {
+  plan: DeparturePlan;
+  settings: Settings;
+  prepMinutes: number;
+  now: Date;
+}) {
+  const sourceIsLive = !/simulated|offline/i.test(plan.estimate.source);
+  return (
+    <div className="plan-details" aria-label="Wake time explanation">
+      <div className="plan-source-row">
+        <span className={`source-badge ${sourceIsLive ? "live" : "simulated"}`}>
+          {sourceIsLive ? "Live route" : "Offline simulation"}
+        </span>
+        <span>Updated {formatClock(now)}</span>
+      </div>
+      <div className="route-preview">
+        <strong>{settings.home?.label ?? "Start"}</strong>
+        <span>to</span>
+        <strong>{plan.commitment.destination.label}</strong>
+      </div>
+      <div className="route-meta">
+        {distanceLabel(plan.estimate.distanceMeters)} · {plan.estimate.source}
+      </div>
+      <div className="wake-breakdown">
+        <span>Arrive {formatClock(plan.arriveBy)}</span>
+        <span>- {formatDuration(settings.arrivalBufferMinutes)} buffer</span>
+        <span>- {formatDuration(plan.estimate.durationSeconds / 60)} travel</span>
+        <span>- {formatDuration(prepMinutes)} prep</span>
+        <span>- {formatDuration(settings.wakeAheadMinutes)} wake cushion</span>
+      </div>
+    </div>
+  );
+}
+
+function AlarmReliabilityNotice() {
+  return (
+    <div className="reliability-notice">
+      <Icon name="alarm" size={17} />
+      <div>
+        <strong>Use Calendar reminders for critical mornings</strong>
+        <span>
+          Browser alerts work best while Departure is open or installed as a PWA;
+          calendar reminders are the system-level backup.
+        </span>
+      </div>
+    </div>
   );
 }
 

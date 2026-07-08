@@ -7,11 +7,19 @@ import {
   showAlarmNotification,
   type AlarmNotificationPermission,
 } from "../core/notifications";
+import { playAlarmChime } from "../core/alarmSound";
+import { requestLocationSample } from "../core/location";
+import {
+  systemReminderCalendar,
+  systemReminderFileName,
+} from "../core/systemReminders";
 import { listProviders } from "../core/traffic/provider";
 import { PlacePicker } from "./PlacePicker";
+import type { DeparturePlan } from "../core/types";
 
 interface Props {
   settings: Settings;
+  testPlan: DeparturePlan | null;
   onChange: (settings: Settings) => void;
   placeSuggestions: PlaceSuggestion[];
   placeHistoryCount: number;
@@ -25,6 +33,7 @@ interface Props {
 
 export function SettingsPanel({
   settings,
+  testPlan,
   onChange,
   placeSuggestions,
   placeHistoryCount,
@@ -37,6 +46,9 @@ export function SettingsPanel({
   const [locationConsentChecked, setLocationConsentChecked] = useState(
     settings.locationTrackingEnabled,
   );
+  const [alarmTestMessage, setAlarmTestMessage] = useState<string | null>(null);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [checkingLocation, setCheckingLocation] = useState(false);
 
   useEffect(() => {
     setPermission(notificationPermission());
@@ -153,6 +165,12 @@ export function SettingsPanel({
               browser supports it.
             </p>
             <small className="muted">Permission: {permissionLabel(permission)}</small>
+            {permission === "denied" && (
+              <small className="field-error">
+                Notifications are blocked. Re-enable them from this browser's
+                site settings, then return here and test again.
+              </small>
+            )}
           </div>
           <div className="permission-actions">
             <button
@@ -167,20 +185,70 @@ export function SettingsPanel({
               type="button"
               className="secondary-button"
               disabled={permission !== "granted"}
-              onClick={() => void sendTestNotification()}
+              onClick={() =>
+                void sendTestNotification(setPermission, set, setAlarmTestMessage)
+              }
             >
               Test
             </button>
           </div>
+        </div>
+        <div className="test-flow" aria-live="polite">
+          <strong>Test my alarm</strong>
+          <p>
+            Verify sound, browser notification, and calendar-reminder backup
+            before relying on Departure for an important morning.
+          </p>
+          <div className="permission-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                setAlarmTestMessage(
+                  playAlarmChime()
+                    ? "Sound played. If you did not hear it, check volume and browser audio permissions."
+                    : "Sound could not play in this browser yet.",
+                );
+              }}
+            >
+              Test sound
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={permission === "unsupported" || permission === "denied"}
+              onClick={() =>
+                void sendTestNotification(setPermission, set, setAlarmTestMessage)
+              }
+            >
+              Test notification
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!testPlan}
+              onClick={() => {
+                if (testPlan) downloadTestReminders(testPlan);
+                setAlarmTestMessage(
+                  testPlan
+                    ? "Calendar reminder file downloaded. Add it to your calendar as the system-level backup."
+                    : "Add a reviewed commitment first, then download backup reminders.",
+                );
+              }}
+            >
+              Download backup
+            </button>
+          </div>
+          {alarmTestMessage && <p className="test-message">{alarmTestMessage}</p>}
         </div>
       </section>
 
       <section className="settings-card" aria-labelledby="location-heading">
         <h3 id="location-heading">Missed-departure check</h3>
         <p>
-          If enabled, Departure asks the browser for location during the window
-          after your leave time and before your arrival time. It compares your
-          current position to your home point to detect if you have not left.
+          Departure verifies browser location when you turn this on, then checks
+          again during the window after your leave time and before your arrival
+          time.
         </p>
         <p>
           The app stores only this on/off preference in local storage. Current
@@ -203,16 +271,37 @@ export function SettingsPanel({
           <button
             type="button"
             className={settings.locationTrackingEnabled ? "secondary-button" : "primary-button"}
-            disabled={!settings.locationTrackingEnabled && !locationConsentChecked}
+            disabled={
+              checkingLocation ||
+              (!settings.locationTrackingEnabled && !locationConsentChecked)
+            }
             onClick={() =>
-              set("locationTrackingEnabled", !settings.locationTrackingEnabled)
+              void toggleLocationTracking({
+                enabled: settings.locationTrackingEnabled,
+                set,
+                setCheckingLocation,
+                setLocationMessage,
+              })
             }
           >
             {settings.locationTrackingEnabled
               ? "Turn off live checks"
-              : "Enable live checks"}
+              : checkingLocation
+                ? "Checking location..."
+                : "Enable live checks"}
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={checkingLocation}
+            onClick={() =>
+              void testLocationCheck(setCheckingLocation, setLocationMessage)
+            }
+          >
+            Test location check
           </button>
         </div>
+        {locationMessage && <p className="test-message">{locationMessage}</p>}
       </section>
 
       <section className="settings-card" aria-labelledby="history-heading">
@@ -233,7 +322,15 @@ export function SettingsPanel({
             type="button"
             className="secondary-button"
             disabled={placeHistoryCount === 0}
-            onClick={onClearPlaceHistory}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Forget learned place suggestions from this browser?",
+                )
+              ) {
+                onClearPlaceHistory();
+              }
+            }}
           >
             Forget suggestions
           </button>
@@ -273,10 +370,106 @@ async function requestNotifications(
   setSetting("notificationsEnabled", result === "granted");
 }
 
-async function sendTestNotification() {
-  await showAlarmNotification({
+async function sendTestNotification(
+  setPermission: (permission: AlarmNotificationPermission) => void,
+  setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void,
+  setMessage: (message: string) => void,
+) {
+  let permission = notificationPermission();
+  if (permission === "default") {
+    permission = await requestAlarmNotificationPermission();
+    setPermission(permission);
+    setSetting("notificationsEnabled", permission === "granted");
+  }
+
+  if (permission !== "granted") {
+    setMessage(
+      permission === "denied"
+        ? "Notifications are blocked in browser settings."
+        : "Notifications are not available in this browser.",
+    );
+    return;
+  }
+
+  const shown = await showAlarmNotification({
     title: "Departure notifications are on",
     body: "Wake and leave reminders can now show through your browser.",
     tag: "departure-test",
   });
+  setMessage(
+    shown
+      ? "Test notification sent."
+      : "Notification permission is granted, but this browser did not show the alert.",
+  );
+}
+
+async function testLocationCheck(
+  setChecking: (checking: boolean) => void,
+  setMessage: (message: string) => void,
+) {
+  setChecking(true);
+  try {
+    const sample = await requestLocationSample();
+    setMessage(
+      `Location check worked within about ${Math.round(
+        sample.accuracyMeters,
+      )} m accuracy.`,
+    );
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : "Location check failed.");
+  } finally {
+    setChecking(false);
+  }
+}
+
+async function toggleLocationTracking({
+  enabled,
+  set,
+  setCheckingLocation,
+  setLocationMessage,
+}: {
+  enabled: boolean;
+  set: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+  setCheckingLocation: (checking: boolean) => void;
+  setLocationMessage: (message: string) => void;
+}) {
+  if (enabled) {
+    set("locationTrackingEnabled", false);
+    setLocationMessage("Live missed-departure checks are off.");
+    return;
+  }
+
+  setCheckingLocation(true);
+  try {
+    const sample = await requestLocationSample();
+    set("locationTrackingEnabled", true);
+    setLocationMessage(
+      `Location verified now with about ${Math.round(
+        sample.accuracyMeters,
+      )} m accuracy. Departure will check again only during your leave window.`,
+    );
+  } catch (error) {
+    set("locationTrackingEnabled", false);
+    setLocationMessage(
+      error instanceof Error
+        ? error.message
+        : "Location permission could not be verified.",
+    );
+  } finally {
+    setCheckingLocation(false);
+  }
+}
+
+function downloadTestReminders(plan: DeparturePlan): void {
+  const blob = new Blob([systemReminderCalendar(plan)], {
+    type: "text/calendar;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = systemReminderFileName(plan);
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   placeFromNominatimResult,
   placeSearchUrl,
+  rankPlaces,
   searchPlaces,
 } from "../src/core/placeSearch";
+import type { Place } from "../src/core/types";
 
 describe("place search", () => {
   it("builds a Nominatim free-form search URL", () => {
@@ -13,6 +15,25 @@ describe("place search", () => {
     expect(url.searchParams.get("format")).toBe("jsonv2");
     expect(url.searchParams.get("addressdetails")).toBe("1");
     expect(url.searchParams.get("limit")).toBe("3");
+  });
+
+  it("adds a campus/city search bias without hard-bounding results", () => {
+    const bias: Place = {
+      id: "campus",
+      label: "Bellarmine",
+      lat: 37.343,
+      lng: -121.917,
+    };
+    const url = new URL(placeSearchUrl("library", 5, bias));
+    const viewbox = url.searchParams.get("viewbox");
+    const [west, north, east, south] = (viewbox ?? "").split(",").map(Number);
+
+    expect(viewbox).toBeTruthy();
+    expect(url.searchParams.get("bounded")).toBe("0");
+    expect(west).toBeLessThan(bias.lng);
+    expect(east).toBeGreaterThan(bias.lng);
+    expect(south).toBeLessThan(bias.lat);
+    expect(north).toBeGreaterThan(bias.lat);
   });
 
   it("normalizes Nominatim results into places", () => {
@@ -77,5 +98,45 @@ describe("place search", () => {
 
     expect(results).toHaveLength(1);
     expect(results[0]?.label).toBe("Valid Place");
+  });
+
+  it("ranks useful nearby place results above generic roads or companies", () => {
+    const bias: Place = {
+      id: "home",
+      label: "Home",
+      lat: 37,
+      lng: -122,
+    };
+
+    const ranked = rankPlaces(
+      [
+        {
+          id: "road",
+          label: "Market Street",
+          lat: 37,
+          lng: -122,
+          source: "openstreetmap",
+          primaryLabel: "Market Street",
+          providerLabel: "Road · OpenStreetMap",
+          category: "highway",
+          type: "road",
+        },
+        {
+          id: "school",
+          label: "Main Library",
+          lat: 37.001,
+          lng: -122.001,
+          source: "openstreetmap",
+          primaryLabel: "Main Library",
+          providerLabel: "Library · OpenStreetMap",
+          category: "amenity",
+          type: "library",
+        },
+      ],
+      bias,
+    );
+
+    expect(ranked[0]?.id).toBe("school");
+    expect(ranked[0]?.distanceFromBiasMeters).toBeGreaterThan(0);
   });
 });

@@ -124,12 +124,25 @@ For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
 ID whose authorized JavaScript origins include your app URL. The production UI
 does not ask users to paste OAuth client IDs.
 
+Local development can paste a temporary OAuth web client ID in the connector
+card. That field is only for developer testing; real users should get the
+configured sign-in button.
+
 ### Using Apple Calendar
 
 Apple Calendar does not provide the same web OAuth event API as Google Calendar.
-Departure currently supports private `.ics` file import for Apple Calendar. A
-future always-connected Apple flow should use a backend CalDAV integration or a
-calendar aggregation provider.
+Departure's Apple card can redirect to a secure backend connector by setting
+`VITE_CALENDAR_CONNECTOR_URL`; the frontend will call
+`{connectorUrl}/apple/start?returnTo=...`. That backend should handle Apple
+CalDAV or a trusted calendar aggregation provider and return events without
+asking users to make their calendar public. Private `.ics` import remains as a
+fallback for local/offline use.
+
+On return, the connector can redirect to the app with `calendarProvider=apple`
+and either `calendarEvents`, `calendarIcs`, or `calendarPayloadUrl`. Inline
+payload values should be base64url-encoded; `calendarPayloadUrl` should return
+JSON shaped like `{ "events": [...], "sourceLabel": "Apple Calendar" }` or
+`{ "ics": "BEGIN:VCALENDAR..." }`.
 
 ### Notifications and live location
 

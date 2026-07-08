@@ -86,11 +86,25 @@ export function googleCalendarEventsToCommitments(
   fallbackDestination: Place,
   now = new Date(),
 ): Commitment[] {
+  return calendarApiEventsToCommitments(
+    events,
+    "google",
+    fallbackDestination,
+    now,
+  );
+}
+
+export function calendarApiEventsToCommitments(
+  events: GoogleCalendarEvent[],
+  provider: CalendarProviderId,
+  fallbackDestination: Place,
+  now = new Date(),
+): Commitment[] {
   const importedAt = now.toISOString();
   const commitments = events
     .map((event, index) => googleEventToRawEvent(event, index))
     .map((event, index) =>
-      eventToCommitment(event, "google", fallbackDestination, importedAt, now, index),
+      eventToCommitment(event, provider, fallbackDestination, importedAt, now, index),
     )
     .filter((commitment): commitment is Commitment => commitment !== null)
     .sort((a, b) => {
@@ -215,7 +229,7 @@ function eventToCommitment(
     arriveByMinutes: event.start.date.getHours() * 60 + event.start.date.getMinutes(),
     days,
     oneOffDate: days.length > 0 ? undefined : isoDate(event.start.date),
-    enabled: true,
+    enabled: !destinationInfo.needsLocationReview,
     source: {
       kind: "calendar",
       provider,

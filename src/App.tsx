@@ -10,6 +10,10 @@ import {
   mergeCalendarCommitments,
   removeCalendarCommitments,
 } from "./core/calendar";
+import {
+  calendarConnectorCleanUrl,
+  readCalendarConnectorReturn,
+} from "./core/calendarConnector";
 import { refreshPlanTiming } from "./core/departure";
 import { buildBriefing, computeConfidence } from "./core/confidence";
 import { formatClock } from "./core/time";
@@ -201,6 +205,60 @@ export default function App() {
     }));
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    async function finishConnectorReturn() {
+      const result = await readCalendarConnectorReturn({
+        url: window.location.href,
+        fallbackDestination: CALENDAR_FALLBACK_DESTINATION,
+      });
+      if (!result || cancelled) return;
+
+      if ("message" in result) {
+        setCalendarError(result.provider, result.message);
+      } else {
+        importCalendarCommitments(
+          result.provider,
+          result.commitments,
+          result.metadata,
+        );
+      }
+      setTab("commitments");
+      window.history.replaceState(
+        {},
+        "",
+        calendarConnectorCleanUrl(window.location.href),
+      );
+    }
+
+    void finishConnectorReturn().catch((error) => {
+      const resultProvider = new URLSearchParams(window.location.search).get(
+        "calendarProvider",
+      );
+      const provider =
+        resultProvider === "apple" || resultProvider === "google"
+          ? resultProvider
+          : "apple";
+      setCalendarError(
+        provider,
+        error instanceof Error
+          ? error.message
+          : "Calendar connector could not finish.",
+      );
+      setTab("commitments");
+      window.history.replaceState(
+        {},
+        "",
+        calendarConnectorCleanUrl(window.location.href),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // This runs once on startup to consume a backend connector redirect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="app">
       <SkyScene now={now} />
@@ -257,9 +315,16 @@ export default function App() {
             )}
             {planResult.status === "ready" && livePlan && (
               <>
+                <SetupChecklist
+                  settings={state.settings}
+                  commitments={state.commitments}
+                  calendarConnections={state.calendarConnections}
+                  goto={(t) => setTab(t)}
+                />
                 <AlarmCard
                   plan={livePlan}
                   now={now}
+                  settings={state.settings}
                   liveStatus={liveDepartureStatus}
                   onReviewLocationConsent={() => setTab("settings")}
                   confidence={confidence}
@@ -284,6 +349,7 @@ export default function App() {
             <CommitmentForm
               commitments={state.commitments}
               placeSuggestions={destinationSuggestions}
+              searchBias={state.settings.home}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
               onDismissPlaceSuggestion={hidePlaceSuggestion}
               onChange={(commitments) =>
@@ -317,6 +383,7 @@ export default function App() {
             <h2 className="panel-title">Settings</h2>
             <SettingsPanel
               settings={state.settings}
+              testPlan={livePlan}
               placeSuggestions={homeSuggestions}
               placeHistoryCount={state.placeHistory.length}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
@@ -402,5 +469,101 @@ function EmptyState({
         Add a commitment
       </button>
     </div>
+  );
+}
+
+function SetupChecklist({
+  settings,
+  commitments,
+  calendarConnections,
+  goto,
+}: {
+  settings: AppState["settings"];
+  commitments: AppState["commitments"];
+  calendarConnections: AppState["calendarConnections"];
+  goto: (t: Tab) => void;
+}) {
+  const reviewedCommitments = commitments.filter(
+    (commitment) => commitment.enabled && !commitment.source?.needsLocationReview,
+  );
+  const needsReview = commitments.some(
+    (commitment) => commitment.source?.needsLocationReview,
+  );
+  const connectedCalendars = calendarConnections.filter(
+    (connection) => connection.connected,
+  );
+  const items = [
+    {
+      label: "Start location",
+      detail: settings.home ? settings.home.label : "Set where you leave from",
+      done: Boolean(settings.home),
+      tab: "settings" as Tab,
+    },
+    {
+      label: "Reviewed commitment",
+      detail:
+        reviewedCommitments.length > 0
+          ? `${reviewedCommitments.length} ready`
+          : needsReview
+            ? "Calendar location needs review"
+            : "Add your first place and time",
+      done: reviewedCommitments.length > 0,
+      tab: "commitments" as Tab,
+    },
+    {
+      label: "Calendar source",
+      detail:
+        connectedCalendars.length > 0
+          ? `${connectedCalendars.length} connected`
+          : "Optional, but useful for real mornings",
+      done: connectedCalendars.length > 0,
+      tab: "commitments" as Tab,
+    },
+    {
+      label: "Alarm tested",
+      detail: settings.notificationsEnabled
+        ? "Browser notifications enabled"
+        : "Test sound, notification, and backup",
+      done: settings.notificationsEnabled,
+      tab: "settings" as Tab,
+    },
+    {
+      label: "Leave check",
+      detail: settings.locationTrackingEnabled
+        ? "Location verified"
+        : "Optional missed-departure safety net",
+      done: settings.locationTrackingEnabled,
+      tab: "settings" as Tab,
+    },
+  ];
+
+  const incomplete = items.filter((item) => !item.done);
+  if (incomplete.length === 0) return null;
+
+  return (
+    <section className="setup-checklist" aria-label="Setup checklist">
+      <div className="setup-checklist-head">
+        <strong>Morning reliability checklist</strong>
+        <span>{items.length - incomplete.length}/{items.length} ready</span>
+      </div>
+      <div className="setup-items">
+        {items.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            className={`setup-item ${item.done ? "done" : ""}`}
+            onClick={() => goto(item.tab)}
+          >
+            <span className="setup-check" aria-hidden>
+              {item.done ? "OK" : "!"}
+            </span>
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.detail}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -94,6 +94,7 @@ export function selectNextCommitment(
   let best: { commitment: Commitment; arriveBy: Date } | null = null;
   for (const commitment of commitments) {
     if (!commitment.enabled) continue;
+    if (commitment.source?.needsLocationReview) continue;
     const arriveBy = nextOccurrence(commitment, from);
     if (!arriveBy) continue;
     if (!best || arriveBy.getTime() < best.arriveBy.getTime()) {

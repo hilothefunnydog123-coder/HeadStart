@@ -94,6 +94,25 @@ describe("selectNextCommitment", () => {
     expect(pick?.commitment.id).toBe("on");
   });
 
+  it("ignores calendar commitments that still need location review", () => {
+    const unreviewed = commitment({
+      id: "calendar",
+      arriveByMinutes: 7 * 60,
+      source: {
+        kind: "calendar",
+        provider: "google",
+        externalId: "event",
+        importedAt: new Date().toISOString(),
+        needsLocationReview: true,
+      },
+    });
+    const reviewed = commitment({ id: "reviewed", arriveByMinutes: 9 * 60 });
+    const from = new Date(2026, 6, 8, 6, 0, 0);
+
+    expect(selectNextCommitment([unreviewed, reviewed], from)?.commitment.id)
+      .toBe("reviewed");
+  });
+
   it("returns null when nothing qualifies", () => {
     const from = new Date(2026, 6, 8, 6, 0, 0);
     expect(selectNextCommitment([], from)).toBeNull();

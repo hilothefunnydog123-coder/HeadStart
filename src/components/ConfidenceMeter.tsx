@@ -1,5 +1,6 @@
 import type { Confidence } from "../core/confidence";
 import { formatDuration } from "../core/time";
+import { confidenceDisplayLabel } from "../core/travelDisplay";
 
 interface Props {
   confidence: Confidence;
@@ -11,6 +12,7 @@ interface Props {
  */
 export function ConfidenceMeter({ confidence }: Props) {
   const pct = Math.round(confidence.probability * 100);
+  const label = confidenceDisplayLabel(confidence.probability);
   const cls =
     confidence.level === "high"
       ? "conf-high"
@@ -22,7 +24,7 @@ export function ConfidenceMeter({ confidence }: Props) {
     <div className={`confidence ${cls}`}>
       <div className="confidence-top">
         <span className="confidence-label">On-time confidence</span>
-        <span className="confidence-pct">{pct}%</span>
+        <span className="confidence-pct">{label}</span>
       </div>
       <div className="confidence-track">
         <div className="confidence-fill" style={{ width: `${pct}%` }} />

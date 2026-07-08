@@ -6,6 +6,7 @@ import {
   updatedArrival,
 } from "../core/liveDeparture";
 import { getProvider } from "../core/traffic/provider";
+import { requestLocationSample } from "../core/location";
 import type {
   DeparturePlan,
   Place,
@@ -166,39 +167,47 @@ function useLiveLocation(enabled: boolean): LiveLocation {
       return;
     }
 
-    if (!("geolocation" in navigator)) {
-      setLocation({ kind: "error", message: "Location is not available here." });
-      return;
-    }
-
     setLocation({ kind: "requesting" });
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setLocation({
-          kind: "tracking",
-          place: {
-            id: "current-location",
-            label: "Current location",
-            lat: Number(position.coords.latitude.toFixed(6)),
-            lng: Number(position.coords.longitude.toFixed(6)),
+    let watchId: number | null = null;
+    requestLocationSample()
+      .then((sample) => {
+        setLocation({ kind: "tracking", ...sample });
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            setLocation({
+              kind: "tracking",
+              place: {
+                id: "current-location",
+                label: "Current location",
+                lat: Number(position.coords.latitude.toFixed(6)),
+                lng: Number(position.coords.longitude.toFixed(6)),
+              },
+              accuracyMeters: position.coords.accuracy,
+            });
           },
-          accuracyMeters: position.coords.accuracy,
-        });
-      },
-      (error) => {
+          (error) => {
+            setLocation({
+              kind: "error",
+              message: error.message || "Location permission was not granted.",
+            });
+          },
+          {
+            enableHighAccuracy: false,
+            maximumAge: 30_000,
+            timeout: 12_000,
+          },
+        );
+      })
+      .catch((error) => {
         setLocation({
           kind: "error",
-          message: error.message || "Location permission was not granted.",
+          message: error instanceof Error ? error.message : "Location failed.",
         });
-      },
-      {
-        enableHighAccuracy: false,
-        maximumAge: 30_000,
-        timeout: 12_000,
-      },
-    );
+      });
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    };
   }, [enabled]);
 
   return location;

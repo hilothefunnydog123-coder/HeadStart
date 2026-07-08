@@ -63,6 +63,7 @@ describe("parseCalendarIcs", () => {
     expect(commitments[0]?.days).toEqual([1, 3]);
     expect(commitments[0]?.oneOffDate).toBeUndefined();
     expect(commitments[0]?.source?.needsLocationReview).toBe(true);
+    expect(commitments[0]?.enabled).toBe(false);
   });
 
   it("skips all-day and cancelled events", () => {
@@ -140,6 +141,7 @@ describe("googleCalendarEventsToCommitments", () => {
     expect(commitments[0]?.destination.label).toBe("Customer HQ");
     expect(commitments[0]?.destination.lat).toBe(fallback.lat);
     expect(commitments[0]?.source?.needsLocationReview).toBe(true);
+    expect(commitments[0]?.enabled).toBe(false);
   });
 });
 

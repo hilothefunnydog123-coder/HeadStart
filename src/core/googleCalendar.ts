@@ -54,6 +54,13 @@ export function configuredGoogleClientId(): string {
   return meta.env?.VITE_GOOGLE_CLIENT_ID?.trim() ?? "";
 }
 
+export function configuredCalendarConnectorUrl(): string {
+  const meta = import.meta as ImportMeta & {
+    env?: Record<string, string | undefined>;
+  };
+  return meta.env?.VITE_CALENDAR_CONNECTOR_URL?.trim() ?? "";
+}
+
 export function loadGoogleIdentityScript(): Promise<void> {
   if (window.google?.accounts?.oauth2) return Promise.resolve();
   if (scriptLoadPromise) return scriptLoadPromise;

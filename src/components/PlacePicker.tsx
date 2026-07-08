@@ -9,6 +9,7 @@ import {
 import type { PlaceSuggestion } from "../core/placeHistory";
 import { searchPlaces, type PlaceSearchResult } from "../core/placeSearch";
 import type { Place } from "../core/types";
+import { distanceLabel } from "../core/travelDisplay";
 import { makeId } from "../state/store";
 import { Icon } from "./Icon";
 
@@ -17,6 +18,7 @@ interface Props {
   value: Place | null;
   onChange: (place: Place) => void;
   suggestions?: PlaceSuggestion[];
+  searchBias?: Place | null;
   onPlaceSelected?: (place: Place) => void;
   onDismissSuggestion?: (historyId: string) => void;
 }
@@ -26,6 +28,7 @@ export function PlacePicker({
   value,
   onChange,
   suggestions = [],
+  searchBias = null,
   onPlaceSelected,
   onDismissSuggestion,
 }: Props) {
@@ -91,7 +94,7 @@ export function PlacePicker({
     searchRequestRef.current = requestId;
     setIsSearching(true);
     try {
-      const matches = await searchPlaces(trimmed);
+      const matches = await searchPlaces(trimmed, fetch, { bias: searchBias });
       if (searchRequestRef.current !== requestId) return;
       setResults(matches);
       setActiveResultIndex(matches.length > 0 ? 0 : -1);
@@ -183,6 +186,8 @@ export function PlacePicker({
     );
   };
 
+  const activeResult = results[activeResultIndex] ?? null;
+
   return (
     <fieldset className="place-picker">
       <legend>{label}</legend>
@@ -214,7 +219,8 @@ export function PlacePicker({
             </button>
           </div>
           <small id={providerDisclosureId} className="muted">
-            Search uses OpenStreetMap.
+            Search uses OpenStreetMap
+            {searchBias ? `, biased near ${searchBias.label}.` : "."}
           </small>
         </label>
       </form>
@@ -235,7 +241,7 @@ export function PlacePicker({
           <div className="suggestion-row">
             {suggestions.map((suggestion) => (
               <div
-                key={`${suggestion.reason}-${suggestion.place.id}`}
+                key={`${suggestion.historyId}-${suggestion.reason}`}
                 className="suggestion-chip"
               >
                 <button
@@ -290,6 +296,34 @@ export function PlacePicker({
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {activeResult && (
+        <div className="place-preview" aria-live="polite">
+          <div>
+            <strong>{activeResult.primaryLabel}</strong>
+            {activeResult.secondaryLabel && (
+              <span>{activeResult.secondaryLabel}</span>
+            )}
+            <small>
+              {activeResult.providerLabel}
+              {activeResult.distanceFromBiasMeters != null
+                ? ` · ${distanceLabel(
+                    activeResult.distanceFromBiasMeters,
+                  )} from ${searchBias?.label ?? "start"}`
+                : ""}
+            </small>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              selectPlace(activeResult);
+            }}
+          >
+            Select this place
+          </button>
         </div>
       )}
 

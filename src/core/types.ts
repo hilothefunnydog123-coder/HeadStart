@@ -49,7 +49,7 @@ export interface CalendarConnection {
   provider: CalendarProviderId;
   connected: boolean;
   eventCount: number;
-  authMode?: "google-oauth" | "file-upload" | "ics-url";
+  authMode?: "google-oauth" | "apple-connector" | "file-upload" | "ics-url";
   lastSyncedAt?: string;
   sourceLabel?: string;
   sourceUrl?: string;
