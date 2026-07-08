@@ -54,12 +54,25 @@ grpT = "Trade settings"
 allowLong  = input.bool(true,  "Take long taps (bullish levels)",  group=grpT)
 allowShort = input.bool(false, "Take short taps (bearish levels)", group=grpT)
 minGradeS  = input.string("Any", "Minimum level grade", options=["Any", "B (any HTF)", "A or better", "A+ only"], group=grpT)
-rejectClose = input.bool(true, "Tap bar must close back beyond the level", group=grpT)
-stopPts    = input.float(10.0, "Stop distance beyond level (pts)", minval=0.25, step=0.25, group=grpT)
+entryStyle = input.string("Resting limit at level", "Entry style", options=["Resting limit at level", "Confirmed tap (market)"], group=grpT,
+     tooltip="Resting limit rests a buy/sell order AT the level price and fills on first touch — no chasing the tap bar. Confirmed tap waits for a bar to tap and close back beyond the level, then enters at the next bar open")
+armPts     = input.float(30.0, "└ Arm resting order within N pts of level", step=0.25, group=grpT)
+rejectClose = input.bool(true, "Tap mode: bar must close back beyond the level", group=grpT)
+useCandleQ  = input.bool(false, "Tap mode: close must be in outer % of bar range", group=grpT)
+closePosPct = input.float(60,  "└ Close position (% of range)", minval=0, maxval=100, group=grpT)
+minAgeBars = input.int(2, "Min level age before tradable (bars)", minval=0, group=grpT)
+stopMode   = input.string("Fixed points", "Stop mode", options=["Fixed points", "ATR multiple"], group=grpT)
+stopPts    = input.float(10.0, "└ Stop distance beyond level (pts)", minval=0.25, step=0.25, group=grpT)
+atrMult    = input.float(1.5,  "└ ATR-14 stop multiple", minval=0.1, step=0.1, group=grpT)
 tpR        = input.float(1.5,  "Take-profit (R multiple)", minval=0.1, step=0.1, group=grpT)
 useBE      = input.bool(false, "Move stop to breakeven", group=grpT)
 beTrigger  = input.float(0.7,  "└ Breakeven trigger (R)", minval=0.1, step=0.1, group=grpT)
 beOffTicks = input.int(2,      "└ Breakeven offset (ticks)", minval=0, group=grpT)
+
+grpB = "Directional bias"
+biasMode   = input.string("None", "Bias filter", options=["None", "VWAP", "EMA", "VWAP + EMA"], group=grpB,
+     tooltip="Longs only when price is above the bias line(s); shorts only below. Stops counter-trend taps from getting run over")
+biasEmaLen = input.int(200, "└ Bias EMA length", minval=1, group=grpB)
 
 grpP = "Trade pacing"
 useSession = input.bool(false, "Limit entries to a session", group=grpP)
@@ -68,6 +81,7 @@ maxPerDay  = input.int(0, "Max trades per day (0 = unlimited)", minval=0, group=
 maxLossDay = input.int(0, "Stop after N losses in a day (0 = off)", minval=0, group=grpP)
 
 minGrade = minGradeS == "A+ only" ? 3 : minGradeS == "A or better" ? 2 : minGradeS == "B (any HTF)" ? 1 : 0
+restMode = entryStyle == "Resting limit at level"
 
 //--------------------------------------------------
 // HTF FVG storage
@@ -298,6 +312,17 @@ lossDelta = ta.change(strategy.losstrades)
 if lossDelta > 0
     lossesToday += lossDelta
 
+// directional bias + volatility context
+atr14   = ta.atr(14)
+vwapV   = ta.vwap(hlc3)
+biasEma = ta.ema(close, biasEmaLen)
+longBiasOk  = biasMode == "None" or (biasMode == "VWAP" ? close > vwapV : biasMode == "EMA" ? close > biasEma : close > vwapV and close > biasEma)
+shortBiasOk = biasMode == "None" or (biasMode == "VWAP" ? close < vwapV : biasMode == "EMA" ? close < biasEma : close < vwapV and close < biasEma)
+stopDist = stopMode == "Fixed points" ? stopPts : atrMult * atr14
+
+plot(biasMode == "VWAP" or biasMode == "VWAP + EMA" ? vwapV : na, "Bias VWAP", color = color.new(color.yellow, 30))
+plot(biasMode == "EMA" or biasMode == "VWAP + EMA" ? biasEma : na, "Bias EMA", color = color.new(color.gray, 40))
+
 inSession = not useSession or not na(time(timeframe.period, sess))
 dayOk     = maxPerDay == 0 or tradesToday < maxPerDay
 lossOk    = maxLossDay == 0 or lossesToday < maxLossDay
@@ -316,14 +341,18 @@ if array.size(lvls) > 0
         gr   = array.get(grades, i)
         born = array.get(bornBars, i)
 
-        canCheck = bar_index > born
-        tapped   = canCheck and low <= lvl and high >= lvl
-        invalid  = canCheck and (dir == 1 ? close < lvl - invalidPts : close > lvl + invalidPts)
+        canCheck = bar_index - born >= math.max(1, minAgeBars)
+        tapped   = bar_index > born and low <= lvl and high >= lvl
+        invalid  = bar_index > born and (dir == 1 ? close < lvl - invalidPts : close > lvl + invalidPts)
         expired  = maxAgeBars > 0 and bar_index - born > maxAgeBars
 
-        wantTrade = tapped and canTrade and na(sigLvl) and gr >= minGrade and
-             (dir == 1 ? allowLong and (not rejectClose or close >= lvl) :
-                         allowShort and (not rejectClose or close <= lvl))
+        rng = high - low
+        candleOk = not useCandleQ or rng <= 0 or
+             (dir == 1 ? (close - low) / rng >= closePosPct / 100 : (high - close) / rng >= closePosPct / 100)
+
+        wantTrade = not restMode and tapped and canCheck and canTrade and na(sigLvl) and gr >= minGrade and candleOk and
+             (dir == 1 ? allowLong and longBiasOk and (not rejectClose or close >= lvl) :
+                         allowShort and shortBiasOk and (not rejectClose or close <= lvl))
 
         if wantTrade
             sigLvl := lvl
@@ -341,9 +370,10 @@ var float trStop = na
 var float trTp   = na
 var bool  beDone = false
 
+// ---- confirmed-tap mode: market entry on the signal, stop/target from the close
 if not na(sigLvl)
     if sigDir == 1
-        stop = sigLvl - stopPts
+        stop = sigLvl - stopDist
         risk = close - stop
         if risk > 0
             trStop := stop
@@ -353,7 +383,7 @@ if not na(sigLvl)
             strategy.entry("Long", strategy.long)
             strategy.exit("XL", from_entry="Long", stop=trStop, limit=trTp)
     else
-        stop = sigLvl + stopPts
+        stop = sigLvl + stopDist
         risk = stop - close
         if risk > 0
             trStop := stop
@@ -362,6 +392,63 @@ if not na(sigLvl)
             tradesToday += 1
             strategy.entry("Short", strategy.short)
             strategy.exit("XS", from_entry="Short", stop=trStop, limit=trTp)
+
+// ---- resting-limit mode: keep one order resting AT the nearest eligible level,
+// so the first touch fills at the level price instead of chasing the tap close
+var float armedLvl = na
+var int   armedDir = 0
+
+if restMode
+    float bestLvl  = na
+    int   bestDir  = 0
+    float bestDist = na
+    if array.size(lvls) > 0
+        for i = 0 to array.size(lvls) - 1
+            lvl = array.get(lvls, i)
+            dir = array.get(dirs, i)
+            gr  = array.get(grades, i)
+            age = bar_index - array.get(bornBars, i)
+            eligible = age >= math.max(1, minAgeBars) and gr >= minGrade and
+                 (dir == 1 ? allowLong and close > lvl and longBiasOk :
+                             allowShort and close < lvl and shortBiasOk)
+            dist = math.abs(close - lvl)
+            if eligible and dist <= armPts and (na(bestDist) or dist < bestDist)
+                bestLvl  := lvl
+                bestDir  := dir
+                bestDist := dist
+
+    if canTrade
+        // retarget: pull the order if a different level is now the best candidate
+        if not na(armedLvl) and (na(bestLvl) or bestLvl != armedLvl or bestDir != armedDir)
+            strategy.cancel(armedDir == 1 ? "Long" : "Short")
+            armedLvl := na
+            armedDir := 0
+        if not na(bestLvl) and na(armedLvl)
+            armedLvl := bestLvl
+            armedDir := bestDir
+            beDone   := false
+            if bestDir == 1
+                trStop := bestLvl - stopDist
+                trTp   := bestLvl + tpR * (bestLvl - trStop)
+                strategy.entry("Long", strategy.long, limit = bestLvl)
+                strategy.exit("XL", from_entry = "Long", stop = trStop, limit = trTp)
+            else
+                trStop := bestLvl + stopDist
+                trTp   := bestLvl - tpR * (trStop - bestLvl)
+                strategy.entry("Short", strategy.short, limit = bestLvl)
+                strategy.exit("XS", from_entry = "Short", stop = trStop, limit = trTp)
+    else if not na(armedLvl) and strategy.position_size == 0
+        // gates closed (session over, daily caps hit): pull the resting order
+        strategy.cancel(armedDir == 1 ? "Long" : "Short")
+        armedLvl := na
+        armedDir := 0
+
+// count fills of resting orders and release the armed slot
+justFilled = strategy.position_size != 0 and strategy.position_size[1] == 0
+if restMode and justFilled
+    tradesToday += 1
+    armedLvl := na
+    armedDir := 0
 
 // breakeven management
 if useBE and not beDone and strategy.position_size != 0
