@@ -10,10 +10,11 @@ import type {
 export interface PlaceSuggestion {
   historyId: string;
   place: Place;
-  reason: "usual" | "recent";
+  reason: "usual" | "recent" | "favorite";
   label: string;
   useCount: number;
   lastUsedAt: string;
+  dismissible?: boolean;
 }
 
 const MAX_HISTORY = 30;
@@ -64,13 +65,18 @@ export function suggestPlaces(
     .map((entry) => suggestionForEntry(entry, context, at))
     .filter((suggestion): suggestion is PlaceSuggestion => suggestion !== null)
     .sort((a, b) => {
-      const reasonScore =
-        (b.reason === "usual" ? 1 : 0) - (a.reason === "usual" ? 1 : 0);
+      const reasonScore = reasonRank(b.reason) - reasonRank(a.reason);
       if (reasonScore !== 0) return reasonScore;
       if (b.useCount !== a.useCount) return b.useCount - a.useCount;
       return b.lastUsedAt.localeCompare(a.lastUsedAt);
     })
     .slice(0, limit);
+}
+
+function reasonRank(reason: PlaceSuggestion["reason"]): number {
+  if (reason === "favorite") return 2;
+  if (reason === "usual") return 1;
+  return 0;
 }
 
 export function dismissPlaceSuggestion(

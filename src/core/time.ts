@@ -84,8 +84,7 @@ export function nextOccurrence(commitment: Commitment, from: Date): Date | null 
 }
 
 /**
- * Of all enabled commitments, the one whose next occurrence is soonest — the
- * "first commitment of the day" the alarm should plan around.
+ * Of all enabled schedule items, the one whose next occurrence is soonest.
  */
 export function selectNextCommitment(
   commitments: Commitment[],

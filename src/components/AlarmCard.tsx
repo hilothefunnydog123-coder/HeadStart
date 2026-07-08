@@ -1,7 +1,13 @@
-import type { DeparturePlan, PlanPhase } from "../core/types";
+import type { DeparturePlan, Place, PlanPhase } from "../core/types";
 import type { Settings } from "../core/types";
 import type { Confidence } from "../core/confidence";
 import { formatClock, formatDuration } from "../core/time";
+import {
+  displayDestination,
+  displayItemKind,
+  isStudyItem,
+  isTestItem,
+} from "../core/schedule";
 import { distanceLabel } from "../core/travelDisplay";
 import { TrafficBadge } from "./TrafficBadge";
 import { TrafficSparkline } from "./TrafficSparkline";
@@ -26,6 +32,14 @@ interface Props {
   settings: Settings;
   liveStatus: LiveDepartureStatus;
   onReviewLocationConsent: () => void;
+  originOverride: Place | null;
+  originOverrideSource: "manual" | "live" | "campus" | null;
+  originMessage: string | null;
+  checkingOrigin: boolean;
+  onUseCurrentOrigin: () => void;
+  onUseCampusOrigin?: () => void;
+  onUseDestinationOrigin: () => void;
+  onClearOriginOverride: () => void;
   confidence: Confidence | null;
   briefing: BriefingControl;
 }
@@ -40,7 +54,7 @@ interface Hero {
 function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
   if (liveStatus.kind === "still-home") {
     return {
-      eyebrow: "Still at home",
+      eyebrow: "You are late",
       big: "Leave now",
       sub: `ETA ${formatClock(liveStatus.arrival)}`,
       className: "phase-late",
@@ -48,21 +62,56 @@ function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
   }
 
   const phase: PlanPhase = plan.phase;
-  const untilWake = formatDuration(plan.minutesUntilWake);
+  const untilPrep = formatDuration(plan.minutesUntilWake);
   const untilLeave = formatDuration(plan.minutesUntilLeave);
+  const kind = displayItemKind(plan.commitment).toLowerCase();
+
+  if (isStudyItem(plan.commitment)) {
+    if (phase === "sleep") {
+      return {
+        eyebrow: "Study session",
+        big: "Study in",
+        sub: `${formatDuration(plan.minutesUntilArrive)} · ${studyLabel(plan)}`,
+        className: "phase-sleep",
+      };
+    }
+    if (phase === "wake" || phase === "prep") {
+      return {
+        eyebrow: "Study soon",
+        big: "Get set",
+        sub: `starts in ${formatDuration(plan.minutesUntilArrive)}`,
+        className: "phase-prep",
+      };
+    }
+    if (phase === "leave") {
+      return {
+        eyebrow: "Study time",
+        big: "Study now",
+        sub: `${studyLabel(plan)} · ${formatClock(plan.arriveBy)}`,
+        className: "phase-leave",
+      };
+    }
+  }
 
   switch (phase) {
     case "sleep":
-      return {
-        eyebrow: "Wake up at",
-        big: formatClock(plan.wakeBy),
-        sub: `in ${untilWake}`,
-        className: "phase-sleep",
-      };
+      return plan.usesWake
+        ? {
+            eyebrow: "First class prep",
+            big: formatClock(plan.wakeBy),
+            sub: `start in ${untilPrep}`,
+            className: "phase-sleep",
+          }
+        : {
+            eyebrow: "Plenty of time",
+            big: "Prep at",
+            sub: `${formatClock(plan.wakeBy)} · ${kind} at ${formatClock(plan.arriveBy)}`,
+            className: "phase-sleep",
+          };
     case "wake":
       return {
-        eyebrow: "Rise & shine",
-        big: "Wake up",
+        eyebrow: plan.usesWake ? "Morning prep" : "Start getting ready",
+        big: plan.usesWake ? "Get up" : "Prep now",
         sub: `leave in ${untilLeave}`,
         className: "phase-wake",
       };
@@ -84,14 +133,22 @@ function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
     }
     case "enroute":
       return {
-        eyebrow: "On your way",
-        big: "Safe travels",
-        sub: `arrive ${formatClock(plan.arriveBy)}`,
+        eyebrow: isStudyItem(plan.commitment)
+          ? "Study time"
+          : isTestItem(plan.commitment)
+            ? "Test started"
+            : "In class",
+        big: isStudyItem(plan.commitment) ? "Focus" : "You made it",
+        sub: `${displayItemKind(plan.commitment)} started ${formatClock(plan.arriveBy)}`,
         className: "phase-enroute",
       };
     default:
       return { eyebrow: "", big: "", sub: "", className: "" };
   }
+}
+
+function studyLabel(plan: DeparturePlan): string {
+  return plan.commitment.courseId || plan.commitment.title.replace(/^Study\s+/i, "");
 }
 
 const activeChip: Record<PlanPhase, "wake" | "leave" | "arrive" | null> = {
@@ -110,18 +167,28 @@ export function AlarmCard({
   settings,
   liveStatus,
   onReviewLocationConsent,
+  originOverride,
+  originOverrideSource,
+  originMessage,
+  checkingOrigin,
+  onUseCurrentOrigin,
+  onUseCampusOrigin,
+  onUseDestinationOrigin,
+  onClearOriginOverride,
   confidence,
   briefing,
 }: Props) {
   const h = hero(plan, liveStatus);
   const { commitment } = plan;
   const active = activeChip[plan.phase];
-  const prepMinutes = commitment.prepMinutesOverride ?? settings.prepMinutes;
+  const prepMinutes =
+    commitment.prepMinutesOverride ??
+    (plan.usesWake ? settings.prepMinutes : settings.campusPrepMinutes ?? 5);
 
   const chips: { key: "wake" | "leave" | "arrive"; label: string; at: Date }[] = [
-    { key: "wake", label: "Wake", at: plan.wakeBy },
+    { key: "wake", label: plan.usesWake ? "Wake" : "Prep", at: plan.wakeBy },
     { key: "leave", label: "Leave", at: plan.leaveBy },
-    { key: "arrive", label: "Arrive", at: plan.arriveBy },
+    { key: "arrive", label: isStudyItem(commitment) ? "Study" : "Arrive", at: plan.arriveBy },
   ];
 
   return (
@@ -153,6 +220,17 @@ export function AlarmCard({
         showEnablePrompt={plan.phase === "prep" || plan.phase === "leave"}
         onReviewLocationConsent={onReviewLocationConsent}
       />
+      <StartPointControls
+        originOverride={originOverride}
+        originOverrideSource={originOverrideSource}
+        originMessage={originMessage}
+        checkingOrigin={checkingOrigin}
+        onUseCurrentOrigin={onUseCurrentOrigin}
+        onUseCampusOrigin={onUseCampusOrigin}
+        onUseDestinationOrigin={onUseDestinationOrigin}
+        onClearOriginOverride={onClearOriginOverride}
+      />
+      <TransitionWarning plan={plan} />
 
       {confidence && <ConfidenceMeter confidence={confidence} />}
 
@@ -162,7 +240,9 @@ export function AlarmCard({
         </span>
         <div className="commitment-info">
           <div className="commitment-title">{commitment.title}</div>
-          <div className="commitment-dest">{commitment.destination.label}</div>
+          <div className="commitment-dest">
+            {displayItemKind(commitment)} · {displayDestination(commitment)}
+          </div>
         </div>
         {briefing.supported && (
           <button
@@ -200,6 +280,88 @@ export function AlarmCard({
   );
 }
 
+function StartPointControls({
+  originOverride,
+  originOverrideSource,
+  originMessage,
+  checkingOrigin,
+  onUseCurrentOrigin,
+  onUseCampusOrigin,
+  onUseDestinationOrigin,
+  onClearOriginOverride,
+}: {
+  originOverride: Place | null;
+  originOverrideSource: "manual" | "live" | "campus" | null;
+  originMessage: string | null;
+  checkingOrigin: boolean;
+  onUseCurrentOrigin: () => void;
+  onUseCampusOrigin?: () => void;
+  onUseDestinationOrigin: () => void;
+  onClearOriginOverride: () => void;
+}) {
+  const label =
+    originOverrideSource === "campus"
+      ? "Already on campus"
+      : originOverrideSource === "live"
+        ? "Live location"
+        : originOverride
+          ? "Current location"
+          : "Start point";
+
+  return (
+    <div className="start-point-controls">
+      <div>
+        <strong>{label}</strong>
+        <span>
+          {originOverride
+            ? originOverride.label
+            : "Use a temporary start point if today is different."}
+        </span>
+        {originMessage && <small>{originMessage}</small>}
+      </div>
+      <div className="start-point-actions">
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={checkingOrigin}
+          onClick={onUseCurrentOrigin}
+        >
+          <Icon name="pin" size={15} />
+          {checkingOrigin ? "Checking..." : "I'm leaving from here"}
+        </button>
+        {onUseCampusOrigin && (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onUseCampusOrigin}
+          >
+            <Icon name="route" size={15} />
+            Already on campus
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onUseDestinationOrigin}
+        >
+          <Icon name="pin" size={15} />
+          I'm already there
+        </button>
+        {originOverride && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Clear temporary start point"
+            onClick={onClearOriginOverride}
+          >
+            <Icon name="close" size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PlanDetails({
   plan,
   settings,
@@ -221,22 +383,54 @@ function PlanDetails({
         <span>Updated {formatClock(now)}</span>
       </div>
       <div className="route-preview">
-        <strong>{settings.home?.label ?? "Start"}</strong>
+        <strong>{plan.originLabel}</strong>
         <span>to</span>
-        <strong>{plan.commitment.destination.label}</strong>
+        <strong>{displayDestination(plan.commitment)}</strong>
       </div>
       <div className="route-meta">
         {distanceLabel(plan.estimate.distanceMeters)} · {plan.estimate.source}
       </div>
       <div className="wake-breakdown">
-        <span>Arrive {formatClock(plan.arriveBy)}</span>
+        <span>{isStudyItem(plan.commitment) ? "Start" : "Arrive"} {formatClock(plan.arriveBy)}</span>
         <span>- {formatDuration(settings.arrivalBufferMinutes)} buffer</span>
         <span>- {formatDuration(plan.estimate.durationSeconds / 60)} travel</span>
         <span>- {formatDuration(prepMinutes)} prep</span>
-        <span>- {formatDuration(settings.wakeAheadMinutes)} wake cushion</span>
+        {plan.usesWake && (
+          <span>- {formatDuration(settings.wakeAheadMinutes)} wake cushion</span>
+        )}
       </div>
     </div>
   );
+}
+
+function TransitionWarning({ plan }: { plan: DeparturePlan }) {
+  if (plan.impossibleTransition) {
+    return (
+      <div className="departure-alert departure-alert-error">
+        <Icon name="route" size={19} />
+        <div>
+          <strong>Class gap is too tight</strong>
+          <span>
+            {plan.gapMinutes ?? 0} min between items is not enough for this trip.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (plan.gapMinutes != null && plan.previousCommitment) {
+    return (
+      <div className="departure-alert departure-alert-gap">
+        <Icon name="route" size={19} />
+        <div>
+          <strong>{plan.gapMinutes} min between schedule items</strong>
+          <span>Starting from {plan.previousCommitment.destination.label}.</span>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function AlarmReliabilityNotice() {
@@ -244,10 +438,10 @@ function AlarmReliabilityNotice() {
     <div className="reliability-notice">
       <Icon name="alarm" size={17} />
       <div>
-        <strong>Use Calendar reminders for critical mornings</strong>
+        <strong>Use Calendar reminders for critical classes</strong>
         <span>
-          Browser alerts work best while Departure is open or installed as a PWA;
-          calendar reminders are the system-level backup.
+          Browser alerts work best while HeadStart is open or installed as a PWA;
+          calendar reminders are the system-level backup for classes and tests.
         </span>
       </div>
     </div>
@@ -268,7 +462,7 @@ function LiveDeparturePanel({
       <div className="departure-alert departure-alert-late">
         <Icon name="route" size={19} />
         <div>
-          <strong>Still at departure point</strong>
+          <strong>Still at start point</strong>
           <span>
             Updated arrival {formatClock(status.arrival)}
             {status.delayMinutes > 0 ? ` · ${status.delayMinutes}m late` : ""}
@@ -286,7 +480,7 @@ function LiveDeparturePanel({
           <strong>Live missed-departure checks are off</strong>
           <span>
             Enable browser location checks during your leave window to update ETA
-            if you are still at home.
+            if you are still at the start point.
           </span>
         </div>
         <button

@@ -58,7 +58,7 @@ describe("system reminders", () => {
     now: new Date("2026-07-13T14:00:00.000Z"),
   });
 
-  it("creates wake and leave calendar events with immediate alarms", () => {
+  it("creates prep and leave calendar events with immediate alarms", () => {
     const ics = systemReminderCalendar(
       plan,
       new Date("2026-07-07T18:00:00.000Z"),
@@ -68,14 +68,14 @@ describe("system reminders", () => {
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
     expect(ics.match(/BEGIN:VALARM/g)).toHaveLength(2);
     expect(ics).toContain("TRIGGER:PT0M");
-    expect(ics).toContain("SUMMARY:Wake up for Chemistry lab");
+    expect(ics).toContain("SUMMARY:Prep for Chemistry lab");
     expect(ics).toContain("SUMMARY:Leave for Chemistry lab");
     expect(ics).toContain("Science Hall");
   });
 
   it("uses a readable reminder filename", () => {
     expect(systemReminderFileName(plan)).toBe(
-      "departure-reminders-2026-07-13-chemistry-lab.ics",
+      "headstart-reminders-2026-07-13-chemistry-lab.ics",
     );
   });
 });

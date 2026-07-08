@@ -37,9 +37,20 @@ export function defaultState(): AppState {
   return {
     settings: {
       home: null,
+      campus: null,
       work: null,
       school: null,
+      favoriteBuildings: [],
       prepMinutes: 45,
+      campusPrepMinutes: 5,
+      campusWalkingBufferMinutes: 5,
+      defaultStudyMinutes: 180,
+      maxStudySessionMinutes: 60,
+      targetStudySessions: 3,
+      avoidStudyAfterMinutes: 21 * 60,
+      semester: {
+        holidays: [],
+      },
       arrivalBufferMinutes: 10,
       wakeAheadMinutes: 5,
       trafficProvider: "simulated",
@@ -128,8 +139,48 @@ function normalizeSettings(
   return {
     ...settings,
     home: isLegacyDemoHome(settings.home) ? null : settings.home ?? null,
+    campus: isLegacyDemoPlace(settings.campus) ? null : settings.campus ?? null,
     work: isLegacyDemoPlace(settings.work) ? null : settings.work ?? null,
     school: isLegacyDemoPlace(settings.school) ? null : settings.school ?? null,
+    favoriteBuildings: Array.isArray(settings.favoriteBuildings)
+      ? settings.favoriteBuildings.filter((place) => !isLegacyDemoPlace(place))
+      : [],
+    campusPrepMinutes: numberOr(settings.campusPrepMinutes, base.campusPrepMinutes),
+    campusWalkingBufferMinutes: numberOr(
+      settings.campusWalkingBufferMinutes,
+      base.campusWalkingBufferMinutes,
+    ),
+    defaultStudyMinutes: numberOr(
+      settings.defaultStudyMinutes,
+      base.defaultStudyMinutes,
+    ),
+    maxStudySessionMinutes: numberOr(
+      settings.maxStudySessionMinutes,
+      base.maxStudySessionMinutes,
+    ),
+    targetStudySessions: numberOr(
+      settings.targetStudySessions,
+      base.targetStudySessions,
+    ),
+    avoidStudyAfterMinutes: numberOr(
+      settings.avoidStudyAfterMinutes,
+      base.avoidStudyAfterMinutes,
+    ),
+    semester: normalizeSemesterSettings(settings.semester, base.semester),
+  };
+}
+
+function normalizeSemesterSettings(
+  value: Settings["semester"] | undefined,
+  fallback: Settings["semester"] | undefined,
+): Settings["semester"] {
+  const semester = { ...(fallback ?? {}), ...(value ?? {}) };
+  return {
+    startDate: normalizeDate(semester.startDate),
+    endDate: normalizeDate(semester.endDate),
+    finalsStartDate: normalizeDate(semester.finalsStartDate),
+    finalsEndDate: normalizeDate(semester.finalsEndDate),
+    holidays: normalizeDateList(semester.holidays),
   };
 }
 
@@ -138,14 +189,37 @@ function normalizeCommitments(
   fallback: Commitment[],
 ): Commitment[] {
   if (!Array.isArray(value)) return fallback;
-  return value.filter((commitment) => !isLegacyDemoCommitment(commitment));
+  return value
+    .filter((commitment) => !isLegacyDemoCommitment(commitment))
+    .map(normalizeScheduleItem);
+}
+
+function normalizeScheduleItem(commitment: Commitment): Commitment {
+  const itemType =
+    commitment.itemType ??
+    (isTestTitle(commitment.title)
+      ? "test"
+      : commitment.study
+        ? "study"
+        : "event");
+  return {
+    ...commitment,
+    itemType,
+    travelMode: commitment.travelMode ?? "walk",
+    originStrategy:
+      commitment.originStrategy ??
+      (itemType === "class" || itemType === "study" || itemType === "test"
+        ? "previous"
+        : undefined),
+  };
 }
 
 function isLegacyDemoCommitment(value: Partial<Commitment>): boolean {
   return (
-    value.id === "standup" &&
-    value.title === "Morning standup" &&
-    isSameDemoPlace(value.destination, LEGACY_DEMO_OFFICE)
+    isLegacyDemoOffice(value.destination) &&
+    (value.id === "standup" ||
+      value.title === "Morning standup" ||
+      value.destination?.label === LEGACY_DEMO_OFFICE.label)
   );
 }
 
@@ -161,18 +235,7 @@ function isLegacyDemoHome(value: Place | null | undefined): boolean {
 }
 
 function isLegacyDemoOffice(value: Place | null | undefined): boolean {
-  return isSameDemoPlace(value, LEGACY_DEMO_OFFICE);
-}
-
-function isSameDemoPlace(
-  value: Place | null | undefined,
-  demoPlace: Place,
-): boolean {
-  return (
-    hasDemoCoordinates(value, demoPlace) &&
-    value?.id === demoPlace.id &&
-    value.label === demoPlace.label
-  );
+  return value?.label === LEGACY_DEMO_OFFICE.label;
 }
 
 function hasDemoCoordinates(
@@ -184,4 +247,23 @@ function hasDemoCoordinates(
     Math.abs((value?.lat ?? 0) - demoPlace.lat) < 0.00001 &&
     Math.abs((value?.lng ?? 0) - demoPlace.lng) < 0.00001
   );
+}
+
+function numberOr(value: number | undefined, fallback: number | undefined): number {
+  return Number.isFinite(value) ? Number(value) : Number(fallback ?? 0);
+}
+
+function normalizeDate(value: string | undefined): string | undefined {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : undefined;
+}
+
+function normalizeDateList(value: string[] | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(normalizeDate).filter(Boolean) as string[])].sort();
+}
+
+function isTestTitle(title: string): boolean {
+  return /\b(test|quiz|exam|midterm|final)\b/i.test(title);
 }

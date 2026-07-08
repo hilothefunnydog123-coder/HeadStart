@@ -1,5 +1,5 @@
 /*
- * Departure — visual language
+ * HeadStart — visual language
  * A composed, cool-graphite canvas with one disciplined signature accent:
  * emerald-teal, which doubles as the product's meaning — "on time / go". No
  * rainbow of hues; phase is expressed as a tight walk within the teal→green
@@ -214,6 +214,14 @@ body::after {
   font-size: 25px;
   letter-spacing: 0;
   line-height: 1;
+}
+
+.brand-title,
+.ring-big,
+.panel-title,
+.placeholder h2 {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0;
 }
 
 .brand-tag {
@@ -463,6 +471,55 @@ body::after {
   color: var(--hot);
 }
 
+.departure-alert-gap {
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--hair));
+  background: color-mix(in srgb, var(--warn) 9%, var(--surface));
+  color: var(--warn);
+}
+
+.start-point-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 14px;
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.start-point-controls strong,
+.start-point-controls span,
+.start-point-controls small {
+  display: block;
+}
+
+.start-point-controls strong {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.start-point-controls span,
+.start-point-controls small {
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.start-point-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.start-point-actions .secondary-button {
+  min-height: var(--control-h-compact);
+  padding-inline: 10px;
+}
+
 .mini-button {
   display: inline-flex;
   align-items: center;
@@ -515,6 +572,96 @@ body::after {
   font-size: 17px;
   font-weight: 540;
   font-variant-numeric: tabular-nums;
+}
+
+.today-strip {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.today-strip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.today-strip-head strong {
+  font-size: 13.5px;
+}
+
+.today-strip-head span {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.today-strip-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(128px, 1fr);
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.today-pill {
+  display: grid;
+  gap: 3px;
+  min-height: 76px;
+  padding: 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+
+.today-pill-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--hair));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.today-pill-test {
+  border-color: color-mix(in srgb, var(--hot) 32%, var(--hair));
+}
+
+.today-pill-study {
+  border-color: color-mix(in srgb, var(--warn) 34%, var(--hair));
+}
+
+.today-pill-gap {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+
+.today-pill span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.today-pill-gap span {
+  color: var(--text-faint);
+}
+
+.today-pill strong,
+.today-pill small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-pill strong {
+  font-size: 12.5px;
+}
+
+.today-pill small {
+  color: var(--text-dim);
+  font-size: 11px;
 }
 
 /* ---------- Commitment row ---------- */
@@ -967,6 +1114,58 @@ select:focus {
   min-width: 0;
 }
 
+.study-planner {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--hair));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.study-planner h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.study-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.study-warning {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--hair));
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  color: var(--warn);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.schedule-conflict-warning {
+  border-color: color-mix(in srgb, var(--hot) 46%, var(--hair));
+  background: color-mix(in srgb, var(--hot) 10%, var(--surface));
+  color: var(--hot);
+}
+
+.study-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-xs);
+  background: var(--ink);
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
 .commitment-row {
   border: 1px solid var(--hair);
   border-radius: var(--radius-sm);
@@ -978,6 +1177,22 @@ select:focus {
 
 .commitment-row.disabled {
   opacity: 0.74;
+}
+
+.commitment-row:has(.source-pill-warn) {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--hair));
+}
+
+.commitment-row.schedule-type-class {
+  border-left: 4px solid color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.commitment-row.schedule-type-test {
+  border-left: 4px solid color-mix(in srgb, var(--hot) 70%, transparent);
+}
+
+.commitment-row.schedule-type-study {
+  border-left: 4px solid color-mix(in srgb, var(--warn) 75%, transparent);
 }
 
 .commitment-head {
@@ -1034,6 +1249,22 @@ select:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  padding: 0 7px;
+  margin-right: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--hair));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .commitment-chevron {
@@ -1739,6 +1970,16 @@ select:focus {
     width: 100%;
     justify-content: center;
   }
+  .start-point-controls {
+    grid-template-columns: 1fr;
+  }
+  .start-point-actions,
+  .start-point-actions .secondary-button {
+    width: 100%;
+  }
+  .start-point-actions .secondary-button {
+    justify-content: center;
+  }
   .search-control {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
@@ -1784,6 +2025,19 @@ select:focus {
 .link-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-color: var(--hair);
+  box-shadow: none;
+}
+
+.primary-button:disabled:hover,
+.secondary-button:disabled:hover {
+  border-color: var(--hair);
 }
 
 .danger-link {

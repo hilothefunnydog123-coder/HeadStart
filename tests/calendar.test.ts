@@ -66,6 +66,32 @@ describe("parseCalendarIcs", () => {
     expect(commitments[0]?.enabled).toBe(false);
   });
 
+  it("imports exams and quizzes as test schedule items", () => {
+    const commitments = parseCalendarIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:final-1",
+        "SUMMARY:Biology Final Exam",
+        "DTSTART:20260715T100000",
+        "LOCATION:37.8044,-122.2712",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\n"),
+      "google",
+      fallback,
+      now,
+    );
+
+    expect(commitments).toHaveLength(1);
+    expect(commitments[0]?.itemType).toBe("test");
+    expect(commitments[0]?.test).toMatchObject({
+      testDate: "2026-07-15",
+      targetStudyMinutes: 180,
+      difficulty: "standard",
+    });
+  });
+
   it("skips all-day and cancelled events", () => {
     const commitments = parseCalendarIcs(
       [

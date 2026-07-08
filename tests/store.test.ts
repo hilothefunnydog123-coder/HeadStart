@@ -9,6 +9,7 @@ describe("state storage", () => {
     const state = defaultState();
 
     expect(state.settings.home).toBeNull();
+    expect(state.settings.campus).toBeNull();
     expect(state.settings.work).toBeNull();
     expect(state.settings.school).toBeNull();
     expect(state.commitments).toEqual([]);
@@ -44,7 +45,7 @@ describe("state storage", () => {
     });
   });
 
-  it("removes legacy demo Home and Morning standup from existing browsers", async () => {
+  it("removes legacy demo Home and demo-office commitments from existing browsers", async () => {
     vi.resetModules();
     window.localStorage.clear();
     window.localStorage.setItem(
@@ -71,6 +72,20 @@ describe("state storage", () => {
             travelMode: "drive",
             arriveByMinutes: 540,
             days: [1, 2, 3, 4, 5],
+            enabled: true,
+          },
+          {
+            id: "edited-demo",
+            title: "d",
+            destination: {
+              id: "office",
+              label: "Office — Financial District",
+              lat: 37.7946,
+              lng: -122.3999,
+            },
+            travelMode: "walk",
+            arriveByMinutes: 540,
+            days: [1],
             enabled: true,
           },
           {
@@ -111,5 +126,45 @@ describe("state storage", () => {
     expect(state.settings.home).toBeNull();
     expect(state.commitments.map((commitment) => commitment.id)).toEqual(["real"]);
     expect(state.placeHistory).toEqual([]);
+  });
+
+  it("migrates older schedule data into student defaults", async () => {
+    vi.resetModules();
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      "smart-departure-alarm/v1",
+      JSON.stringify({
+        commitments: [
+          {
+            id: "quiz",
+            title: "Chemistry Quiz",
+            destination: {
+              id: "science",
+              label: "Science Hall",
+              lat: 37.428,
+              lng: -122.17,
+            },
+            travelMode: "walk",
+            arriveByMinutes: 600,
+            days: [],
+            oneOffDate: "2026-07-15",
+            enabled: true,
+          },
+        ],
+      }),
+    );
+
+    const { loadState } = await import("../src/state/store");
+    const state = loadState();
+
+    expect(state.settings.campusPrepMinutes).toBe(5);
+    expect(state.settings.defaultStudyMinutes).toBe(180);
+    expect(state.settings.targetStudySessions).toBe(3);
+    expect(state.settings.semester).toMatchObject({ holidays: [] });
+    expect(state.commitments[0]).toMatchObject({
+      id: "quiz",
+      itemType: "test",
+      originStrategy: "previous",
+    });
   });
 });

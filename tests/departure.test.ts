@@ -11,6 +11,8 @@ import type {
 
 const home: Place = { id: "h", label: "Home", lat: 37.7599, lng: -122.4148 };
 const office: Place = { id: "o", label: "Office", lat: 37.7946, lng: -122.3999 };
+const library: Place = { id: "lib", label: "Main Library", lat: 37.7789, lng: -122.412 };
+const science: Place = { id: "sci", label: "Science Hall", lat: 37.7797, lng: -122.414 };
 
 const commitment: Commitment = {
   id: "c",
@@ -131,6 +133,142 @@ describe("planNextDeparture (integration)", () => {
       expect(result.estimate.durationSeconds).toBeGreaterThan(0);
       expect(result.wakeBy.getTime()).toBeLessThan(result.leaveBy.getTime());
       expect(result.leaveBy.getTime()).toBeLessThan(result.arriveBy.getTime());
+    }
+  });
+
+  it("uses first-class wake prep for the first class of the day", async () => {
+    const now = new Date(2026, 6, 8, 6, 0, 0);
+    const result = await planNextDeparture(
+      [
+        {
+          ...commitment,
+          title: "Biology",
+          itemType: "class",
+          travelMode: "walk",
+        },
+      ],
+      {
+        ...settings,
+        prepMinutes: 40,
+        campusPrepMinutes: 5,
+        campusWalkingBufferMinutes: 0,
+      },
+      now,
+    );
+    expect("commitment" in result).toBe(true);
+    if ("commitment" in result) {
+      expect(result.isFirstClassOfDay).toBe(true);
+      expect(result.usesWake).toBe(true);
+      expect(result.wakeBy.getTime()).toBeLessThan(result.leaveBy.getTime());
+    }
+  });
+
+  it("starts later classes from the previous class building", async () => {
+    const now = new Date(2026, 6, 8, 9, 15, 0);
+    const result = await planNextDeparture(
+      [
+        {
+          ...commitment,
+          id: "bio",
+          title: "Biology",
+          itemType: "class",
+          destination: library,
+          travelMode: "walk",
+          arriveByMinutes: 9 * 60,
+        },
+        {
+          ...commitment,
+          id: "chem",
+          title: "Chemistry",
+          itemType: "class",
+          destination: science,
+          travelMode: "walk",
+          arriveByMinutes: 10 * 60,
+        },
+      ],
+      {
+        ...settings,
+        campusPrepMinutes: 5,
+        campusWalkingBufferMinutes: 0,
+      },
+      now,
+    );
+    expect("commitment" in result).toBe(true);
+    if ("commitment" in result) {
+      expect(result.commitment.id).toBe("chem");
+      expect(result.origin).toEqual(library);
+      expect(result.previousCommitment?.id).toBe("bio");
+      expect(result.usesWake).toBe(false);
+      expect(result.gapMinutes).toBe(60);
+    }
+  });
+
+  it("lets current location override missing saved home for this session", async () => {
+    const current: Place = {
+      id: "current-location",
+      label: "Current location",
+      lat: 37.7801,
+      lng: -122.411,
+    };
+    const now = new Date(2026, 6, 8, 6, 0, 0);
+    const result = await planNextDeparture(
+      [
+        {
+          ...commitment,
+          title: "Biology",
+          itemType: "class",
+          destination: science,
+          travelMode: "walk",
+        },
+      ],
+      { ...settings, home: null, campus: null },
+      now,
+      current,
+    );
+    expect("commitment" in result).toBe(true);
+    if ("commitment" in result) {
+      expect(result.origin).toEqual(current);
+      expect(result.originLabel).toBe("Current location");
+    }
+  });
+
+  it("uses automatic live current location only when live checks are enabled", async () => {
+    const current: Place = {
+      id: "current-location",
+      label: "Current location",
+      lat: 37.7801,
+      lng: -122.411,
+    };
+    const classItem: Commitment = {
+      ...commitment,
+      title: "Biology",
+      itemType: "class",
+      destination: science,
+      travelMode: "walk",
+    };
+    const now = new Date(2026, 6, 8, 6, 0, 0);
+
+    await expect(
+      planNextDeparture(
+        [classItem],
+        { ...settings, home: null, campus: null, locationTrackingEnabled: false },
+        now,
+        current,
+        "live",
+      ),
+    ).resolves.toEqual({ phase: "no-home" });
+
+    const result = await planNextDeparture(
+      [classItem],
+      { ...settings, home: null, campus: null, locationTrackingEnabled: true },
+      now,
+      current,
+      "live",
+    );
+
+    expect("commitment" in result).toBe(true);
+    if ("commitment" in result) {
+      expect(result.origin).toEqual(current);
     }
   });
 
