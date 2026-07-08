@@ -1,0 +1,203 @@
+//@version=5
+// ============================================================================
+// EMA Cloud + 5m/15m FVG Tap Strategy — designed for NQ futures (long only)
+//
+// Concept:
+//   * The EMA cloud (fast 20 / medium-slow 50) is calculated on the CHART
+//     timeframe. Switch the chart from 5m to 15m and the cloud re-adjusts
+//     automatically (on a 5m chart it is the 5m EMA cloud, on 15m the 15m
+//     cloud, etc.).
+//   * Fair Value Gaps are ALWAYS detected on the 5-minute and 15-minute
+//     timeframes — never combined with the chart TF. On a 5m chart you still
+//     get both 5m and 15m gaps; same on a 15m chart.
+//   * A long entry requires ALL of:
+//       1. Bullish cloud (fast EMA above slow EMA)
+//       2. Price taps INTO the cloud (bar low reaches the fast EMA) while
+//          holding above the slow EMA (cloud not broken)
+//       3. The tap aligns with (overlaps) an active bullish FVG from the
+//          5m and/or 15m timeframe
+//
+// Run this on a 1m, 3m, 5m, or 15m chart. Above 15m the FVG engines are
+// disabled (a warning is shown) because 5m/15m gaps can't be built from
+// larger bars.
+// ============================================================================
+
+strategy("EMA Cloud + 5m/15m FVG Tap [NQ, Long]",
+     shorttitle = "Cloud+FVG NQ",
+     overlay = true,
+     initial_capital = 25000,
+     default_qty_type = strategy.fixed,
+     default_qty_value = 1,
+     commission_type = strategy.commission.cash_per_contract,
+     commission_value = 1.4,
+     slippage = 1,
+     max_boxes_count = 500)
+
+// ----------------------------------------------------------------------------
+// Inputs
+// ----------------------------------------------------------------------------
+grpCloud = "EMA Cloud (chart timeframe — re-adjusts when you switch TF)"
+fastLen            = input.int(20,  "Fast EMA length",        minval = 1, group = grpCloud)
+slowLen            = input.int(50,  "Medium/Slow EMA length", minval = 1, group = grpCloud)
+needCloseAboveFast = input.bool(true, "Tap bar must close back above the fast EMA", group = grpCloud)
+useTrendEma        = input.bool(false, "Extra slow trend-EMA filter (close must be above it)", group = grpCloud)
+trendLen           = input.int(200, "Trend EMA length", minval = 1, group = grpCloud)
+
+grpFvg = "Fair Value Gaps (fixed 5m & 15m — independent of chart TF)"
+use5        = input.bool(true,  "Use 5-minute FVGs",  group = grpFvg)
+use15       = input.bool(true,  "Use 15-minute FVGs", group = grpFvg)
+fvgMode     = input.string("Either TF", "Tap must align with FVG on", options = ["Either TF", "Both TFs"], group = grpFvg)
+minGapTicks = input.int(0,  "Minimum gap size (ticks)",        minval = 0,             group = grpFvg)
+maxZones    = input.int(12, "Max active zones kept per TF",    minval = 1, maxval = 40, group = grpFvg)
+showBoxes   = input.bool(true, "Draw FVG boxes", group = grpFvg)
+
+grpRisk = "Risk management"
+stopBasis    = input.string("FVG bottom", "Stop placement", options = ["FVG bottom", "Slow EMA", "Lowest of both"], group = grpRisk)
+stopBufTicks = input.int(8,    "Stop buffer (ticks)",       minval = 0,               group = grpRisk)
+rMult        = input.float(2.0, "Take-profit (R multiple)", minval = 0.1, step = 0.1, group = grpRisk)
+exitOnFlip   = input.bool(true, "Also exit if the cloud flips bearish", group = grpRisk)
+
+grpSess    = "Session filter"
+useSession = input.bool(false, "Limit entries to a session", group = grpSess)
+sess       = input.session("0830-1500", "Session (exchange time)", group = grpSess)
+
+// ----------------------------------------------------------------------------
+// EMA cloud — chart timeframe, so it adapts when you change timeframes
+// ----------------------------------------------------------------------------
+emaFast  = ta.ema(close, fastLen)
+emaSlow  = ta.ema(close, slowLen)
+emaTrend = ta.ema(close, trendLen)
+
+bullCloud = emaFast > emaSlow
+
+pFast = plot(emaFast, "Fast EMA (20)", color = color.new(color.teal,   0))
+pSlow = plot(emaSlow, "Slow EMA (50)", color = color.new(color.orange, 0))
+fill(pFast, pSlow, color = bullCloud ? color.new(color.teal, 80) : color.new(color.red, 80), title = "EMA Cloud")
+plot(useTrendEma ? emaTrend : na, "Trend EMA", color = color.new(color.gray, 40))
+
+// ----------------------------------------------------------------------------
+// Higher-timeframe data (non-repainting: only CLOSED 5m / 15m bars are used)
+// ----------------------------------------------------------------------------
+chartSec = timeframe.in_seconds(timeframe.period)
+ok5  = use5  and chartSec <= timeframe.in_seconds("5")
+ok15 = use15 and chartSec <= timeframe.in_seconds("15")
+
+f_htf(tf) =>
+    request.security(syminfo.tickerid, tf, [high, low, time], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off)
+
+[h5,  l5,  t5]  = f_htf("5")
+[h15, l15, t15] = f_htf("15")
+
+// ----------------------------------------------------------------------------
+// FVG tracker. Each call keeps its own zone arrays (one instance per TF).
+// A bullish FVG forms on the HTF when the low of bar N is above the high of
+// bar N-2 (classic 3-candle imbalance). The zone stays active until price
+// closes below its bottom (fully filled / invalidated).
+// Returns: [tap bar overlaps an active zone, lowest bottom of overlapped zones]
+// ----------------------------------------------------------------------------
+f_trackFvg(float hi, float lo, int tm, bool enabled, color zoneColor) =>
+    var tops    = array.new_float()
+    var bottoms = array.new_float()
+    var zBoxes  = array.new_box()
+    var confHi  = array.new_float()   // last 3 CONFIRMED HTF highs
+    var confLo  = array.new_float()   // last 3 CONFIRMED HTF lows
+
+    if enabled
+        newHtfBar = not na(tm[1]) and tm != tm[1]
+        if newHtfBar
+            array.push(confHi, hi[1])
+            array.push(confLo, lo[1])
+            if array.size(confHi) > 3
+                array.shift(confHi)
+                array.shift(confLo)
+            if array.size(confHi) == 3
+                gapBottom = array.get(confHi, 0)   // high of the oldest bar
+                gapTop    = array.get(confLo, 2)   // low of the newest bar
+                if not na(gapBottom) and not na(gapTop) and gapTop - gapBottom > minGapTicks * syminfo.mintick
+                    array.push(tops, gapTop)
+                    array.push(bottoms, gapBottom)
+                    array.push(zBoxes, showBoxes
+                         ? box.new(bar_index, gapTop, bar_index, gapBottom,
+                             border_color = color.new(zoneColor, 40),
+                             bgcolor      = color.new(zoneColor, 85),
+                             extend       = extend.right)
+                         : box(na))
+                    if array.size(tops) > maxZones
+                        box.delete(array.shift(zBoxes))
+                        array.shift(tops)
+                        array.shift(bottoms)
+        // drop zones that price has closed below (gap filled / invalidated)
+        if array.size(tops) > 0
+            for i = array.size(tops) - 1 to 0
+                if close < array.get(bottoms, i)
+                    box.delete(array.get(zBoxes, i))
+                    array.remove(zBoxes, i)
+                    array.remove(tops, i)
+                    array.remove(bottoms, i)
+
+    inZone = false
+    float zoneBottom = na
+    if enabled and array.size(tops) > 0
+        for i = 0 to array.size(tops) - 1
+            if low <= array.get(tops, i) and high >= array.get(bottoms, i)
+                inZone := true
+                b = array.get(bottoms, i)
+                zoneBottom := na(zoneBottom) ? b : math.min(zoneBottom, b)
+    [inZone, zoneBottom]
+
+[fvg5,  bot5]  = f_trackFvg(h5,  l5,  t5,  ok5,  color.blue)
+[fvg15, bot15] = f_trackFvg(h15, l15, t15, ok15, color.purple)
+
+anyFvgTf   = ok5 or ok15
+alignBoth  = anyFvgTf and (not ok5 or fvg5) and (not ok15 or fvg15)
+alignAny   = fvg5 or fvg15
+fvgAligned = fvgMode == "Both TFs" ? alignBoth : alignAny
+
+float fvgBottom = na
+if fvg5
+    fvgBottom := bot5
+if fvg15
+    fvgBottom := na(fvgBottom) ? bot15 : math.min(fvgBottom, bot15)
+
+// ----------------------------------------------------------------------------
+// Entry logic: bullish cloud + tap into the cloud + FVG alignment
+// ----------------------------------------------------------------------------
+inSession = not useSession or not na(time(timeframe.period, sess))
+
+cloudTap = bullCloud
+     and low <= emaFast                                  // price reached into the cloud
+     and close > emaSlow                                 // but the cloud held
+     and (not needCloseAboveFast or close > emaFast)     // optional rejection close
+
+longCond = cloudTap
+     and fvgAligned
+     and anyFvgTf
+     and inSession
+     and (not useTrendEma or close > emaTrend)
+
+if longCond and strategy.position_size == 0
+    float baseStop = switch stopBasis
+        "FVG bottom" => na(fvgBottom) ? emaSlow : fvgBottom
+        "Slow EMA"   => emaSlow
+        => math.min(na(fvgBottom) ? emaSlow : fvgBottom, emaSlow)
+    stopPrice = baseStop - stopBufTicks * syminfo.mintick
+    riskPts   = close - stopPrice
+    if riskPts > 0
+        strategy.entry("Long", strategy.long)
+        strategy.exit("Exit", from_entry = "Long", stop = stopPrice, limit = close + rMult * riskPts)
+
+if exitOnFlip and strategy.position_size > 0 and not bullCloud
+    strategy.close("Long", comment = "Cloud flipped bearish")
+
+plotshape(longCond and strategy.position_size == 0, "Buy signal", shape.triangleup,
+     location.belowbar, color.new(color.green, 0), size = size.small, text = "TAP+FVG")
+
+alertcondition(longCond, "Cloud tap + FVG alignment", "Bullish EMA cloud tap aligned with 5m/15m FVG on {{ticker}}")
+
+// ----------------------------------------------------------------------------
+// Warn if the chart TF is too high for the 5m/15m FVG engines
+// ----------------------------------------------------------------------------
+var table warnT = table.new(position.top_right, 1, 1)
+if barstate.islast and not anyFvgTf
+    table.cell(warnT, 0, 0, "Chart TF too high for 5m/15m FVGs — use a 15m chart or lower",
+         text_color = color.red, bgcolor = color.new(color.yellow, 70))
