@@ -1,0 +1,254 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//
+// OPENING RANGE BREAKOUT — MNQ 5m
+// Research-grade ORB implementation based on the only intraday setup with
+// published academic results (Zarattini & Aziz 2023, "Can Day Trading Really
+// Be Profitable?"): direction from the first 5m candle of the NY session,
+// entry on the opening-range break, stop at the opposite side of the range,
+// big R-multiple or end-of-day exit, one shot per day, always flat overnight.
+//
+// PRESETS
+//  PAPER MODE (the documented edge — low win rate, monster R days):
+//    Direction = First candle color, Target = 10R + EOD flat,
+//    Sizing = % risk 1.0, everything else default.
+//  HIGH-WR MODE (hit-rate oriented — the panel will show the trade-off):
+//    Target = 1R, Breakeven ON at 0.7R, Min OR size 0.5 ATR,
+//    VWAP alignment ON, entry cutoff 90 min.
+//
+// Run on the MNQ 5-minute chart. Sessions are exchange time (Chicago).
+//
+//@version=5
+strategy("ORB MNQ 5m", overlay=true,
+     initial_capital = 25000,
+     default_qty_type = strategy.fixed,
+     default_qty_value = 1,
+     commission_type = strategy.commission.cash_per_contract,
+     commission_value = 0.52,
+     slippage = 1,
+     calc_on_order_fills = false)
+
+//--------------------------------------------------
+// Inputs
+//--------------------------------------------------
+grpOR = "Opening range"
+sessStr    = input.session("0830-1500", "Trading session (exchange time)", group=grpOR)
+orMinutes  = input.int(5, "Opening range duration (minutes)", options=[5, 15, 30], group=grpOR)
+bufTicks   = input.int(4, "Breakout buffer (ticks)", minval=0, group=grpOR)
+minOrAtr   = input.float(0.0, "Min OR size (ATR-14 mult, 0 = off)", minval=0, step=0.1, group=grpOR)
+maxOrAtr   = input.float(0.0, "Max OR size (ATR-14 mult, 0 = off)", minval=0, step=0.1, group=grpOR)
+
+grpDir = "Direction"
+dirMode = input.string("First candle color", "Direction source",
+     options=["First candle color", "Both directions (OCO breakout)", "Long only", "Short only"], group=grpDir,
+     tooltip="First candle color is the published paper's rule: green opening candle -> long bias, red -> short bias")
+useVwapAlign = input.bool(false, "Also require VWAP alignment", group=grpDir)
+useGapAlign  = input.bool(false, "Also require overnight-gap alignment", group=grpDir,
+     tooltip="Longs only when the session opened above the prior session close; shorts only below")
+useVolConf   = input.bool(false, "First candle volume above average", group=grpDir)
+volMult      = input.float(1.2, "└ Volume multiple of 50-bar average", minval=0.1, step=0.1, group=grpDir)
+
+grpX = "Exits"
+tpMode    = input.string("R multiple", "Target mode", options=["R multiple", "EOD only (no target)"], group=grpX)
+tpR       = input.float(10.0, "└ Take-profit (R multiple)", minval=0.1, step=0.5, group=grpX)
+stopMode  = input.string("Opposite side of OR", "Stop placement", options=["Opposite side of OR", "OR midpoint", "ATR multiple"], group=grpX)
+stopAtr   = input.float(1.0, "└ ATR-14 stop multiple", minval=0.1, step=0.1, group=grpX)
+useBE     = input.bool(false, "Move stop to breakeven", group=grpX)
+beTrigger = input.float(0.7, "└ Breakeven trigger (R)", minval=0.1, step=0.1, group=grpX)
+useTrail  = input.bool(false, "ATR trailing stop after breakeven", group=grpX)
+trailAtr  = input.float(2.0, "└ Trail distance (ATR-14 mult)", minval=0.1, step=0.1, group=grpX)
+flatStr   = input.session("1455-1500", "Force-flat window (exchange time)", group=grpX)
+
+grpR = "Risk & pacing"
+sizeMode  = input.string("Fixed contracts", "Position sizing", options=["Fixed contracts", "% risk of equity"], group=grpR)
+riskPct   = input.float(1.0, "└ Risk per trade (% of equity)", minval=0.1, step=0.1, group=grpR)
+fixedQty  = input.int(1, "└ Fixed contracts", minval=1, group=grpR)
+maxPerDay = input.int(1, "Max entries per day", minval=1, maxval=5, group=grpR)
+cutoffMin = input.int(240, "No new entries after N minutes into session", minval=5, group=grpR)
+
+//--------------------------------------------------
+// Session / opening range state
+//--------------------------------------------------
+inSess   = not na(time(timeframe.period, sessStr))
+newSess  = inSess and not inSess[1]
+inFlat   = not na(time(timeframe.period, flatStr))
+atr14    = ta.atr(14)
+vwapV    = ta.vwap(hlc3)
+volSma   = ta.sma(volume, 50)
+
+orBars = math.max(1, math.round(orMinutes * 60.0 / timeframe.in_seconds(timeframe.period)))
+
+var float orHi = na
+var float orLo = na
+var float c1Open = na
+var float c1Close = na
+var float c1Vol = na
+var float prevSessClose = na
+var float sessOpen = na
+var int   sessBarCount = 0
+var int   entriesToday = 0
+var bool  orDone = false
+
+if newSess
+    prevSessClose := close[1]
+    sessOpen := open
+    orHi := high
+    orLo := low
+    c1Open := open
+    c1Close := close
+    c1Vol := volume
+    sessBarCount := 1
+    entriesToday := 0
+    orDone := orBars == 1
+else if inSess
+    sessBarCount += 1
+    if sessBarCount <= orBars
+        orHi := math.max(orHi, high)
+        orLo := math.min(orLo, low)
+        orDone := sessBarCount == orBars
+    else
+        orDone := true
+
+orSize = orHi - orLo
+minutesIn = sessBarCount * timeframe.in_seconds(timeframe.period) / 60
+
+// draw the opening range
+var line hiLine = na
+var line loLine = na
+if orDone and inSess and (na(hiLine) or newSess or sessBarCount == orBars)
+    hiLine := line.new(bar_index - orBars + 1, orHi, bar_index, orHi, extend=extend.right, color=color.new(color.green, 30))
+    loLine := line.new(bar_index - orBars + 1, orLo, bar_index, orLo, extend=extend.right, color=color.new(color.red, 30))
+if not inSess and not na(hiLine)
+    line.delete(hiLine)
+    line.delete(loLine)
+    hiLine := na
+    loLine := na
+
+//--------------------------------------------------
+// Direction & quality filters
+//--------------------------------------------------
+firstGreen = c1Close > c1Open
+firstRed   = c1Close < c1Open
+
+longBias = dirMode == "Both directions (OCO breakout)" or dirMode == "Long only" or (dirMode == "First candle color" and firstGreen)
+shortBias = dirMode == "Both directions (OCO breakout)" or dirMode == "Short only" or (dirMode == "First candle color" and firstRed)
+
+longOk = longBias and
+     (not useVwapAlign or close > vwapV) and
+     (not useGapAlign or na(prevSessClose) or sessOpen > prevSessClose) and
+     (not useVolConf or na(c1Vol) or c1Vol > volSma * volMult)
+shortOk = shortBias and
+     (not useVwapAlign or close < vwapV) and
+     (not useGapAlign or na(prevSessClose) or sessOpen < prevSessClose) and
+     (not useVolConf or na(c1Vol) or c1Vol > volSma * volMult)
+
+orSizeOk = (minOrAtr == 0 or orSize >= minOrAtr * atr14) and (maxOrAtr == 0 or orSize <= maxOrAtr * atr14)
+
+canEnter = inSess and not inFlat and orDone and sessBarCount >= orBars and
+     minutesIn <= cutoffMin and entriesToday < maxPerDay and
+     strategy.position_size == 0 and orSizeOk
+
+//--------------------------------------------------
+// Entries: stop orders at the OR break
+//--------------------------------------------------
+f_stopFor(_dir, _entry) =>
+    stopMode == "OR midpoint" ? (orHi + orLo) / 2 :
+     stopMode == "ATR multiple" ? (_dir == 1 ? _entry - stopAtr * atr14 : _entry + stopAtr * atr14) :
+     _dir == 1 ? orLo : orHi
+
+var float trStop = na
+var float trTp   = na
+var float trRisk = na
+var bool  beDone = false
+
+buf = bufTicks * syminfo.mintick
+longEntryPx  = orHi + buf
+shortEntryPx = orLo - buf
+
+f_qty(_risk) =>
+    sizeMode == "Fixed contracts" ? fixedQty :
+     math.max(1, math.floor(strategy.equity * riskPct / 100 / math.max(_risk * syminfo.pointvalue, syminfo.mintick * syminfo.pointvalue)))
+
+if canEnter
+    if longOk
+        stopL = f_stopFor(1, longEntryPx)
+        riskL = longEntryPx - stopL
+        if riskL > 0
+            strategy.entry("Long", strategy.long, qty=f_qty(riskL), stop=longEntryPx)
+    else
+        strategy.cancel("Long")
+    if shortOk
+        stopS = f_stopFor(-1, shortEntryPx)
+        riskS = stopS - shortEntryPx
+        if riskS > 0
+            strategy.entry("Short", strategy.short, qty=f_qty(riskS), stop=shortEntryPx)
+    else
+        strategy.cancel("Short")
+else if strategy.position_size == 0
+    strategy.cancel("Long")
+    strategy.cancel("Short")
+
+// on fill: set exits, cancel the opposite order, count the entry
+justFilled = strategy.position_size != 0 and strategy.position_size[1] == 0
+if justFilled
+    entriesToday += 1
+    beDone := false
+    if strategy.position_size > 0
+        strategy.cancel("Short")
+        trStop := f_stopFor(1, strategy.position_avg_price)
+        trRisk := strategy.position_avg_price - trStop
+        trTp   := tpMode == "R multiple" ? strategy.position_avg_price + tpR * trRisk : na
+        strategy.exit("XL", from_entry="Long", stop=trStop, limit=trTp)
+    else
+        strategy.cancel("Long")
+        trStop := f_stopFor(-1, strategy.position_avg_price)
+        trRisk := trStop - strategy.position_avg_price
+        trTp   := tpMode == "R multiple" ? strategy.position_avg_price - tpR * trRisk : na
+        strategy.exit("XS", from_entry="Short", stop=trStop, limit=trTp)
+
+//--------------------------------------------------
+// Trade management: breakeven, ATR trail, EOD flat
+//--------------------------------------------------
+if strategy.position_size != 0 and trRisk > 0
+    avg = strategy.position_avg_price
+    if strategy.position_size > 0
+        if useBE and not beDone and high >= avg + beTrigger * trRisk
+            trStop := avg + 2 * syminfo.mintick
+            beDone := true
+        if useTrail and beDone
+            trStop := math.max(trStop, close - trailAtr * atr14)
+        strategy.exit("XL", from_entry="Long", stop=trStop, limit=trTp)
+    else
+        if useBE and not beDone and low <= avg - beTrigger * trRisk
+            trStop := avg - 2 * syminfo.mintick
+            beDone := true
+        if useTrail and beDone
+            trStop := math.min(trStop, close + trailAtr * atr14)
+        strategy.exit("XS", from_entry="Short", stop=trStop, limit=trTp)
+
+// always flat into the close — the paper's edge is strictly intraday
+if inFlat or (not inSess and strategy.position_size != 0)
+    strategy.close_all(comment="EOD flat")
+    strategy.cancel("Long")
+    strategy.cancel("Short")
+
+//--------------------------------------------------
+// Live performance panel
+//--------------------------------------------------
+showStats = input.bool(true, "Show performance panel", group="Display")
+var table perfT = table.new(position.bottom_right, 2, 4, border_width=1)
+if showStats and barstate.islast
+    total = strategy.closedtrades
+    wins  = strategy.wintrades
+    wr    = total > 0 ? 100.0 * wins / total : na
+    pf    = strategy.grossloss > 0 ? strategy.grossprofit / strategy.grossloss : na
+    hdr   = color.new(color.gray, 60)
+    okC   = color.new(color.green, 75)
+    badC  = color.new(color.red, 80)
+    table.cell(perfT, 0, 0, "Trades", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 0, str.tostring(total), text_color=color.white, text_size=size.small, bgcolor=total >= 100 ? okC : badC)
+    table.cell(perfT, 0, 1, "Win rate", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 1, na(wr) ? "—" : str.tostring(wr, "#.#") + "%", text_color=color.white, text_size=size.small, bgcolor=na(wr) ? badC : wr >= 60 ? okC : badC)
+    table.cell(perfT, 0, 2, "Profit factor", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 2, na(pf) ? "—" : str.tostring(pf, "#.##"), text_color=color.white, text_size=size.small, bgcolor=na(pf) ? badC : pf >= 1.75 ? okC : badC)
+    table.cell(perfT, 0, 3, "Net profit", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 3, str.tostring(strategy.netprofit, "#"), text_color=color.white, text_size=size.small, bgcolor=strategy.netprofit > 0 ? okC : badC)
