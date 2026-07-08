@@ -20,6 +20,30 @@
 // Run this on a 1m, 3m, 5m, or 15m chart. Above 15m the FVG engines are
 // disabled (a warning is shown) because 5m/15m gaps can't be built from
 // larger bars.
+//
+// ---------------------------------------------------------------------------
+// SUGGESTED PRESETS (set these by hand in the settings panel; the on-chart
+// performance panel shows WR / PF / trade count live as you flip toggles)
+//
+//  A. TREND RUNNER (highest expectancy, lower win rate ~45%)
+//     TP 2.5R+ or swing cap OFF, ATR floor OFF, entry Market,
+//     dedup + structure + cloud-overlap ON (defaults)
+//
+//  B. NOISE-PROOF (win-rate oriented, single target)
+//     ATR floor ON at 1.2-1.5, TP 1.5-2R, breakeven ON trigger 0.7R,
+//     stop after 2 losses/day, session 0830-1200
+//
+//  C. SNIPER (few trades, highest per-trade quality)
+//     Preset B + liquidity sweep ON + ADX ON (min 20) + max 2 trades/day
+//
+// A NOTE ON TARGETS LIKE "80% WIN RATE + PROFIT FACTOR 5": that combination
+// implies winning 4 of 5 trades with winners 1.25x losers, sustained. No
+// verified intraday futures system publishes numbers like that. If a
+// backtest shows it, the usual causes are: too few trades (luck), repainting
+// / lookahead bias, unrealistic fills, or settings curve-fit to one date
+// range. Judge configs by expectancy and drawdown across MULTIPLE date
+// ranges, with trade count >= 100.
+// ---------------------------------------------------------------------------
 // ============================================================================
 
 strategy("EMA Cloud + 5m/15m FVG Tap [NQ, Long]",
@@ -397,6 +421,39 @@ plotshape(longCond and strategy.position_size == 0, "Buy signal", shape.triangle
      location.belowbar, color.new(color.green, 0), size = size.small, text = "TAP+FVG")
 
 alertcondition(longCond, "Cloud tap + FVG alignment", "Bullish EMA cloud tap aligned with 5m/15m FVG on {{ticker}}")
+
+// ----------------------------------------------------------------------------
+// Live performance panel — updates instantly as you change settings
+// ----------------------------------------------------------------------------
+showStats = input.bool(true, "Show performance panel", group = "Display")
+
+var table perfT = table.new(position.bottom_right, 2, 5, border_width = 1)
+if showStats and barstate.islast
+    total  = strategy.closedtrades
+    wins   = strategy.wintrades
+    wr     = total > 0 ? 100.0 * wins / total : na
+    pf     = strategy.grossloss > 0 ? strategy.grossprofit / strategy.grossloss : na
+    avgWin  = wins > 0 ? strategy.grossprofit / wins : na
+    losses  = strategy.losstrades
+    avgLoss = losses > 0 ? strategy.grossloss / losses : na
+    hdrBg = color.new(color.gray, 60)
+    okBg  = color.new(color.green, 75)
+    badBg = color.new(color.red, 80)
+    table.cell(perfT, 0, 0, "Trades",     bgcolor = hdrBg, text_color = color.white, text_size = size.small)
+    table.cell(perfT, 1, 0, str.tostring(total), text_color = color.white, text_size = size.small,
+         bgcolor = total >= 100 ? okBg : badBg)
+    table.cell(perfT, 0, 1, "Win rate",   bgcolor = hdrBg, text_color = color.white, text_size = size.small)
+    table.cell(perfT, 1, 1, na(wr) ? "—" : str.tostring(wr, "#.#") + "%", text_color = color.white, text_size = size.small,
+         bgcolor = na(wr) ? badBg : wr >= 60 ? okBg : badBg)
+    table.cell(perfT, 0, 2, "Profit factor", bgcolor = hdrBg, text_color = color.white, text_size = size.small)
+    table.cell(perfT, 1, 2, na(pf) ? "—" : str.tostring(pf, "#.##"), text_color = color.white, text_size = size.small,
+         bgcolor = na(pf) ? badBg : pf >= 1.75 ? okBg : badBg)
+    table.cell(perfT, 0, 3, "Avg win / loss", bgcolor = hdrBg, text_color = color.white, text_size = size.small)
+    table.cell(perfT, 1, 3, (na(avgWin) ? "—" : str.tostring(avgWin, "#")) + " / " + (na(avgLoss) ? "—" : str.tostring(avgLoss, "#")),
+         text_color = color.white, text_size = size.small)
+    table.cell(perfT, 0, 4, "Net profit", bgcolor = hdrBg, text_color = color.white, text_size = size.small)
+    table.cell(perfT, 1, 4, str.tostring(strategy.netprofit, "#"), text_color = color.white, text_size = size.small,
+         bgcolor = strategy.netprofit > 0 ? okBg : badBg)
 
 // ----------------------------------------------------------------------------
 // Warn if the chart TF is too high for the 5m/15m FVG engines
