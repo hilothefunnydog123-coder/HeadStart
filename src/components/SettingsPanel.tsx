@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PlaceSuggestion } from "../core/placeHistory";
-import type { Place, PlaceUsageContext, Settings } from "../core/types";
+import type { Place, Settings } from "../core/types";
 import {
   notificationPermission,
   requestAlarmNotificationPermission,
@@ -14,6 +13,7 @@ import {
   systemReminderFileName,
 } from "../core/systemReminders";
 import { listProviders } from "../core/traffic/provider";
+import { Icon } from "./Icon";
 import { PlacePicker } from "./PlacePicker";
 import type { DeparturePlan } from "../core/types";
 
@@ -21,24 +21,39 @@ interface Props {
   settings: Settings;
   testPlan: DeparturePlan | null;
   onChange: (settings: Settings) => void;
-  placeSuggestions: PlaceSuggestion[];
   placeHistoryCount: number;
-  onPlaceSelected: (place: Place, context: PlaceUsageContext) => void;
-  onDismissPlaceSuggestion: (
-    historyId: string,
-    context: PlaceUsageContext,
-  ) => void;
   onClearPlaceHistory: () => void;
 }
+
+type SavedPlaceKind = "home" | "work" | "school";
+
+const SAVED_PLACES: Array<{
+  kind: SavedPlaceKind;
+  label: string;
+  empty: string;
+}> = [
+  {
+    kind: "home",
+    label: "Home",
+    empty: "Not set. Used as your starting point.",
+  },
+  {
+    kind: "work",
+    label: "Work",
+    empty: "Optional saved destination.",
+  },
+  {
+    kind: "school",
+    label: "School",
+    empty: "Optional saved destination.",
+  },
+];
 
 export function SettingsPanel({
   settings,
   testPlan,
   onChange,
-  placeSuggestions,
   placeHistoryCount,
-  onPlaceSelected,
-  onDismissPlaceSuggestion,
   onClearPlaceHistory,
 }: Props) {
   const [permission, setPermission] =
@@ -49,6 +64,7 @@ export function SettingsPanel({
   const [alarmTestMessage, setAlarmTestMessage] = useState<string | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [checkingLocation, setCheckingLocation] = useState(false);
+  const [editingPlace, setEditingPlace] = useState<SavedPlaceKind | null>(null);
 
   useEffect(() => {
     setPermission(notificationPermission());
@@ -57,23 +73,90 @@ export function SettingsPanel({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
+  const setSavedPlace = (kind: SavedPlaceKind, place: Place) => {
+    onChange({
+      ...settings,
+      [kind]: {
+        ...place,
+        id: kind,
+      },
+    });
+    setEditingPlace(null);
+  };
+
+  const removeSavedPlace = (kind: SavedPlaceKind) => {
+    onChange({ ...settings, [kind]: null });
+    if (editingPlace === kind) setEditingPlace(null);
+  };
+
   const providers = listProviders();
   const googleSelected = settings.trafficProvider === "google";
 
   return (
     <div className="settings">
-      <PlacePicker
-        label="Start from"
-        value={settings.home}
-        onChange={(home) => set("home", home)}
-        suggestions={placeSuggestions}
-        onPlaceSelected={(place) =>
-          onPlaceSelected(place, currentPlaceContext("home"))
-        }
-        onDismissSuggestion={(historyId) =>
-          onDismissPlaceSuggestion(historyId, currentPlaceContext("home"))
-        }
-      />
+      <section className="settings-card saved-places-card" aria-labelledby="saved-places-heading">
+        <h3 id="saved-places-heading">Saved places</h3>
+        <p>
+          Departure will not guess Home from location permission. Save Home,
+          Work, or School only when you choose them.
+        </p>
+        <div className="saved-place-list">
+          {SAVED_PLACES.map((item) => {
+            const place = settings[item.kind] ?? null;
+            const isEditing = editingPlace === item.kind;
+            return (
+              <div
+                key={item.kind}
+                className={`saved-place-row ${isEditing ? "saved-place-row-active" : ""}`}
+              >
+                <span className="saved-place-icon">
+                  <Icon name={item.kind === "home" ? "pin" : "route"} size={17} />
+                </span>
+                <div className="saved-place-copy">
+                  <strong>{item.label}</strong>
+                  <small>{place ? place.label : item.empty}</small>
+                </div>
+                <div className="saved-place-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setEditingPlace(isEditing ? null : item.kind)}
+                  >
+                    {place ? "Change" : `Add ${item.label.toLowerCase()}`}
+                  </button>
+                  {place && (
+                    <button
+                      type="button"
+                      className="icon-button saved-place-remove"
+                      aria-label={`Remove ${item.label}`}
+                      onClick={() => removeSavedPlace(item.kind)}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {editingPlace && (
+          <div className="saved-place-editor">
+            <PlacePicker
+              label={`Set ${placeLabel(editingPlace)}`}
+              value={settings[editingPlace] ?? null}
+              onChange={(place) => setSavedPlace(editingPlace, place)}
+              searchBias={editingPlace === "home" ? null : settings.home}
+            />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setEditingPlace(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </section>
 
       <div className="field-grid">
         <label className="field">
@@ -346,13 +429,8 @@ function clampInt(raw: string, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function currentPlaceContext(kind: PlaceUsageContext["kind"]): PlaceUsageContext {
-  const now = new Date();
-  return {
-    kind,
-    weekday: now.getDay() as PlaceUsageContext["weekday"],
-    hour: now.getHours(),
-  };
+function placeLabel(kind: SavedPlaceKind): string {
+  return SAVED_PLACES.find((item) => item.kind === kind)?.label ?? "place";
 }
 
 function permissionLabel(permission: AlarmNotificationPermission): string {

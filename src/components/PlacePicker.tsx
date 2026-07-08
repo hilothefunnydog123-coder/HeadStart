@@ -54,7 +54,7 @@ export function PlacePicker({
     setQuery(value?.label ?? "");
   }, [value?.id, value?.label, value?.lat, value?.lng]);
 
-  const selectPlace = (place: Place) => {
+  const selectPlace = (place: Place, options: { remember?: boolean } = {}) => {
     const selected = { ...place, id: value?.id ?? place.id };
     setName(selected.label);
     setQuery(selected.label);
@@ -65,7 +65,9 @@ export function PlacePicker({
     setSearchError(null);
     setGeoError(null);
     onChange(selected);
-    onPlaceSelected?.(selected);
+    if (options.remember !== false) {
+      onPlaceSelected?.(selected);
+    }
   };
 
   const runSearch = async (event: FormEvent) => {
@@ -175,11 +177,11 @@ export function PlacePicker({
       (pos) => {
         const p: Place = {
           id: value?.id ?? makeId("place"),
-          label: name.trim() || "My location",
+          label: "Current location",
           lat: Number(pos.coords.latitude.toFixed(5)),
           lng: Number(pos.coords.longitude.toFixed(5)),
         };
-        selectPlace(p);
+        selectPlace(p, { remember: false });
       },
       (err) => setGeoError(err.message || "Couldn't get your location."),
       { enableHighAccuracy: false, timeout: 8000 },

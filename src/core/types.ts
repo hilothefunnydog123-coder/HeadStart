@@ -98,6 +98,9 @@ export interface Commitment {
 export interface Settings {
   /** Where the user departs from. */
   home: Place | null;
+  /** Optional saved destination shortcuts chosen explicitly by the user. */
+  work?: Place | null;
+  school?: Place | null;
   /** Minutes from waking to walking out the door (shower, coffee, dress...). */
   prepMinutes: number;
   /** Extra minutes the user wants to arrive early, as a safety buffer. */

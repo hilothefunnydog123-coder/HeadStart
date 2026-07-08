@@ -15,18 +15,16 @@ export interface AppState {
   placeHistory: PlaceHistoryEntry[];
 }
 
-const STORAGE_KEY = "smart-departure-alarm/v1";
+export const STORAGE_KEY = "smart-departure-alarm/v1";
 
-// A believable default so the app is alive on first launch: home in the
-// Mission, an 9am standup downtown, Mon–Fri.
-const DEMO_HOME: Place = {
+const LEGACY_DEMO_HOME: Place = {
   id: "home",
   label: "Home — Mission District",
   lat: 37.7599,
   lng: -122.4148,
 };
 
-const DEMO_OFFICE: Place = {
+const LEGACY_DEMO_OFFICE: Place = {
   id: "office",
   label: "Office — Financial District",
   lat: 37.7946,
@@ -38,7 +36,9 @@ const CALENDAR_PROVIDERS: CalendarProviderId[] = ["google", "apple"];
 export function defaultState(): AppState {
   return {
     settings: {
-      home: DEMO_HOME,
+      home: null,
+      work: null,
+      school: null,
       prepMinutes: 45,
       arrivalBufferMinutes: 10,
       wakeAheadMinutes: 5,
@@ -48,17 +48,7 @@ export function defaultState(): AppState {
       notificationsEnabled: false,
       locationTrackingEnabled: false,
     },
-    commitments: [
-      {
-        id: "standup",
-        title: "Morning standup",
-        destination: DEMO_OFFICE,
-        travelMode: "drive",
-        arriveByMinutes: 9 * 60, // 09:00
-        days: [1, 2, 3, 4, 5],
-        enabled: true,
-      },
-    ],
+    commitments: [],
     calendarConnections: defaultCalendarConnections(),
     placeHistory: [],
   };
@@ -76,12 +66,12 @@ export function loadState(): AppState {
     const parsed = JSON.parse(raw) as Partial<AppState>;
     const base = defaultState();
     return {
-      settings: { ...base.settings, ...parsed.settings },
-      commitments: Array.isArray(parsed.commitments)
-        ? parsed.commitments
-        : base.commitments,
+      settings: normalizeSettings(parsed.settings, base.settings),
+      commitments: normalizeCommitments(parsed.commitments, base.commitments),
       calendarConnections: normalizeCalendarConnections(parsed.calendarConnections),
-      placeHistory: normalizePlaceHistory(parsed.placeHistory),
+      placeHistory: normalizePlaceHistory(parsed.placeHistory).filter(
+        (entry) => !isLegacyDemoHome(entry.place),
+      ),
     };
   } catch {
     return defaultState();
@@ -128,4 +118,70 @@ function normalizeCalendarConnections(
       error: saved?.error,
     };
   });
+}
+
+function normalizeSettings(
+  value: Partial<Settings> | undefined,
+  base: Settings,
+): Settings {
+  const settings = { ...base, ...(value ?? {}) };
+  return {
+    ...settings,
+    home: isLegacyDemoHome(settings.home) ? null : settings.home ?? null,
+    work: isLegacyDemoPlace(settings.work) ? null : settings.work ?? null,
+    school: isLegacyDemoPlace(settings.school) ? null : settings.school ?? null,
+  };
+}
+
+function normalizeCommitments(
+  value: Commitment[] | undefined,
+  fallback: Commitment[],
+): Commitment[] {
+  if (!Array.isArray(value)) return fallback;
+  return value.filter((commitment) => !isLegacyDemoCommitment(commitment));
+}
+
+function isLegacyDemoCommitment(value: Partial<Commitment>): boolean {
+  return (
+    value.id === "standup" &&
+    value.title === "Morning standup" &&
+    isSameDemoPlace(value.destination, LEGACY_DEMO_OFFICE)
+  );
+}
+
+function isLegacyDemoPlace(value: Place | null | undefined): boolean {
+  return isLegacyDemoHome(value) || isLegacyDemoOffice(value);
+}
+
+function isLegacyDemoHome(value: Place | null | undefined): boolean {
+  return (
+    hasDemoCoordinates(value, LEGACY_DEMO_HOME) &&
+    /^Home\s+[—-]\s+Mission District$/.test(value?.label ?? "")
+  );
+}
+
+function isLegacyDemoOffice(value: Place | null | undefined): boolean {
+  return isSameDemoPlace(value, LEGACY_DEMO_OFFICE);
+}
+
+function isSameDemoPlace(
+  value: Place | null | undefined,
+  demoPlace: Place,
+): boolean {
+  return (
+    hasDemoCoordinates(value, demoPlace) &&
+    value?.id === demoPlace.id &&
+    value.label === demoPlace.label
+  );
+}
+
+function hasDemoCoordinates(
+  value: Place | null | undefined,
+  demoPlace: Place,
+): boolean {
+  return (
+    Boolean(value) &&
+    Math.abs((value?.lat ?? 0) - demoPlace.lat) < 0.00001 &&
+    Math.abs((value?.lng ?? 0) - demoPlace.lng) < 0.00001
+  );
 }

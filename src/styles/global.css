@@ -1537,6 +1537,85 @@ select:focus {
   line-height: 1.45;
 }
 
+.saved-place-list {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.saved-place-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 60px;
+  padding: 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink) 58%, transparent);
+}
+
+.saved-place-row-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hair));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+
+.saved-place-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--hair));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+
+.saved-place-copy {
+  min-width: 0;
+}
+
+.saved-place-copy strong,
+.saved-place-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-place-copy strong {
+  font-size: 13.5px;
+}
+
+.saved-place-copy small {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.saved-place-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.saved-place-remove {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  color: var(--text-faint);
+}
+
+.saved-place-remove:hover {
+  color: var(--hot);
+}
+
+.saved-place-editor {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
 .permission-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

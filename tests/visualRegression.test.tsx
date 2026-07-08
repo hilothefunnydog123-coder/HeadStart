@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/core";
 import App from "../src/App";
+import { defaultState, STORAGE_KEY } from "../src/state/store";
 
 function visualSignature(container: HTMLElement) {
   return {
@@ -34,6 +35,41 @@ function setViewport(width: number, height: number) {
   window.dispatchEvent(new Event("resize"));
 }
 
+function seedReadyState() {
+  const state = defaultState();
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      ...state,
+      settings: {
+        ...state.settings,
+        home: {
+          id: "home",
+          label: "Home",
+          lat: 37.7599,
+          lng: -122.4148,
+        },
+      },
+      commitments: [
+        {
+          id: "standup",
+          title: "Morning standup",
+          destination: {
+            id: "office",
+            label: "Office",
+            lat: 37.7946,
+            lng: -122.3999,
+          },
+          travelMode: "drive",
+          arriveByMinutes: 9 * 60,
+          days: [1, 2, 3, 4, 5],
+          enabled: true,
+        },
+      ],
+    }),
+  );
+}
+
 describe("visual regression contracts", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -42,6 +78,7 @@ describe("visual regression contracts", () => {
   });
 
   it("keeps the alarm screen's key visual sections present", async () => {
+    seedReadyState();
     const { container } = render(<App />);
     await screen.findByText("Morning standup");
 
@@ -65,6 +102,7 @@ describe("visual regression contracts", () => {
 
   it("keeps the mobile alarm screen's key visual sections present", async () => {
     setViewport(390, 844);
+    seedReadyState();
     const { container } = render(<App />);
     await screen.findByText("Morning standup");
 
@@ -92,6 +130,10 @@ describe("visual regression contracts", () => {
     await user.click(await screen.findByRole("tab", { name: "Settings" }));
 
     expect(screen.getByText("Test my alarm")).toBeInTheDocument();
+    expect(screen.getByText("Saved places")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add home" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add work" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add school" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Test sound" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Test location check" })).toBeInTheDocument();
   });

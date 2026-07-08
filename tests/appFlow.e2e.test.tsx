@@ -90,7 +90,7 @@ describe("app setup and commitment flow", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByText("Morning reliability checklist")).toBeInTheDocument();
+    expect(await screen.findByText("Where do you start your day?")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Commitments" }));
     await user.click(screen.getByRole("button", { name: "New commitment" }));
@@ -110,6 +110,25 @@ describe("app setup and commitment flow", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Library work/ })).toBeInTheDocument(),
     );
+  });
+
+  it("requires explicit saved places and keeps current location out of history", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Settings" }));
+
+    expect(screen.queryByText("Home — Mission District")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add home" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add work" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add school" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add home" }));
+    await user.click(screen.getByRole("button", { name: "Use current location" }));
+
+    expect(await screen.findByText("Current location")).toBeInTheDocument();
+    expect(screen.getByText("No learned places yet")).toBeInTheDocument();
+    expect(screen.queryByText("Suggestions from your history")).not.toBeInTheDocument();
   });
 
   it("reuses an incomplete draft instead of piling up blank commitments", async () => {

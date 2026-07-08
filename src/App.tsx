@@ -86,10 +86,6 @@ export default function App() {
     ...nowPlaceContext,
     kind: "destination",
   });
-  const homeSuggestions = suggestPlaces(state.placeHistory, {
-    ...nowPlaceContext,
-    kind: "home",
-  });
 
   const rememberPlace = (place: Place, context: PlaceUsageContext) => {
     setState((s) => ({
@@ -384,10 +380,7 @@ export default function App() {
             <SettingsPanel
               settings={state.settings}
               testPlan={livePlan}
-              placeSuggestions={homeSuggestions}
               placeHistoryCount={state.placeHistory.length}
-              onPlaceSelected={(place, context) => rememberPlace(place, context)}
-              onDismissPlaceSuggestion={hidePlaceSuggestion}
               onChange={(settings) => setState((s) => ({ ...s, settings }))}
               onClearPlaceHistory={() =>
                 setState((s) => ({ ...s, placeHistory: [] }))
