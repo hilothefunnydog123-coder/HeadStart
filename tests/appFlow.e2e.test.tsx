@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/core";
 import App from "../src/App";
+import { defaultState, STORAGE_KEY } from "../src/state/store";
 
 const notificationTitles: string[] = [];
 
@@ -76,6 +77,46 @@ function mockGeolocation() {
   return geolocation;
 }
 
+function seedReadyAlarmState() {
+  const state = defaultState();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const oneOffDate = tomorrow.toISOString().slice(0, 10);
+
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      ...state,
+      settings: {
+        ...state.settings,
+        home: {
+          id: "home",
+          label: "Home",
+          lat: 37.7599,
+          lng: -122.4148,
+        },
+      },
+      commitments: [
+        {
+          id: "studio",
+          title: "Studio",
+          destination: {
+            id: "studio-place",
+            label: "Studio",
+            lat: 37.7946,
+            lng: -122.3999,
+          },
+          travelMode: "drive",
+          arriveByMinutes: 9 * 60,
+          days: [],
+          oneOffDate,
+          enabled: true,
+        },
+      ],
+    }),
+  );
+}
+
 describe("app setup and commitment flow", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -143,6 +184,32 @@ describe("app setup and commitment flow", () => {
 
     const panel = screen.getByRole("tabpanel");
     expect(within(panel).getAllByText("New commitment")).toHaveLength(2);
+  });
+
+  it("updates alarm route timing when the travel mode changes", async () => {
+    seedReadyAlarmState();
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Use Drive" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect((await screen.findAllByText(/Drive ·/)).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Use Bike" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Use Bike" }))
+        .toHaveAttribute("aria-pressed", "true"),
+    );
+    expect((await screen.findAllByText(/Bike ·/)).length).toBeGreaterThan(0);
+    expect(screen.getByText("Bike timing across your morning")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Use Walk" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Use Walk" }))
+        .toHaveAttribute("aria-pressed", "true"),
+    );
+    expect((await screen.findAllByText(/Walk ·/)).length).toBeGreaterThan(0);
+    expect(screen.getByText("Walk timing across your morning")).toBeInTheDocument();
   });
 
   it("lets the user test notification and location checks from settings", async () => {

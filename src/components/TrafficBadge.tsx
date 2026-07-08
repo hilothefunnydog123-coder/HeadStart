@@ -1,13 +1,14 @@
-import type { TravelEstimate } from "../core/types";
+import type { TravelEstimate, TravelMode } from "../core/types";
 import { trafficDisplay } from "../core/travelDisplay";
 
 interface Props {
   estimate: TravelEstimate;
+  mode: TravelMode;
 }
 
 /** Shows current congestion and how much of the trip is delay vs free-flow. */
-export function TrafficBadge({ estimate }: Props) {
-  const display = trafficDisplay(estimate);
+export function TrafficBadge({ estimate, mode }: Props) {
+  const display = trafficDisplay(estimate, mode);
 
   return (
     <div className={`traffic-badge ${display.className}`}>

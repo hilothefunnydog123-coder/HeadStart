@@ -1,5 +1,6 @@
-import type { TravelEstimate } from "./types";
+import type { TravelEstimate, TravelMode } from "./types";
 import { formatDuration } from "./time";
+import { travelModeRouteLabel } from "./travelModes";
 
 const VERY_CLOSE_METERS = 250;
 
@@ -9,7 +10,10 @@ export interface TrafficDisplay {
   detail: string;
 }
 
-export function trafficDisplay(estimate: TravelEstimate): TrafficDisplay {
+export function trafficDisplay(
+  estimate: TravelEstimate,
+  mode: TravelMode = "drive",
+): TrafficDisplay {
   const duration = formatDuration(estimate.durationSeconds / 60);
 
   if (estimate.distanceMeters < VERY_CLOSE_METERS) {
@@ -25,6 +29,18 @@ export function trafficDisplay(estimate: TravelEstimate): TrafficDisplay {
     0,
     (estimate.durationSeconds - estimate.freeFlowSeconds) / 60,
   );
+
+  if (mode !== "drive") {
+    return {
+      label: travelModeRouteLabel(mode),
+      className: estimate.congestion >= 1.25 ? "sev-med" : "sev-clear",
+      detail: `${distanceLabel(estimate.distanceMeters)} · ${duration} estimate${
+        delayMin >= 1 && mode === "transit"
+          ? ` · +${formatDuration(delayMin)} delay`
+          : ""
+      }`,
+    };
+  }
 
   return {
     label,

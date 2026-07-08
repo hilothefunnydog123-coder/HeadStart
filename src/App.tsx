@@ -22,6 +22,7 @@ import type {
   CalendarProviderId,
   Commitment,
   Place,
+  TravelMode,
 } from "./core/types";
 import { useClock } from "./hooks/useClock";
 import { usePlan } from "./hooks/usePlan";
@@ -101,6 +102,20 @@ export default function App() {
     setState((s) => ({
       ...s,
       placeHistory: dismissPlaceSuggestion(s.placeHistory, historyId, context),
+    }));
+  };
+
+  const updateCommitmentTravelMode = (
+    commitmentId: string,
+    travelMode: TravelMode,
+  ) => {
+    setState((s) => ({
+      ...s,
+      commitments: s.commitments.map((commitment) =>
+        commitment.id === commitmentId
+          ? { ...commitment, travelMode }
+          : commitment,
+      ),
     }));
   };
 
@@ -323,6 +338,7 @@ export default function App() {
                   settings={state.settings}
                   liveStatus={liveDepartureStatus}
                   onReviewLocationConsent={() => setTab("settings")}
+                  onTravelModeChange={updateCommitmentTravelMode}
                   confidence={confidence}
                   briefing={{
                     supported: briefing.supported,

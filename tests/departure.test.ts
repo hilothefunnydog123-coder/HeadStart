@@ -134,6 +134,41 @@ describe("planNextDeparture (integration)", () => {
     }
   });
 
+  it("updates travel time and leave time for bike and walk modes", async () => {
+    const now = new Date(2026, 6, 8, 6, 0, 0);
+    const drive = await planNextDeparture(
+      [{ ...commitment, travelMode: "drive" }],
+      settings,
+      now,
+    );
+    const bike = await planNextDeparture(
+      [{ ...commitment, travelMode: "cycle" }],
+      settings,
+      now,
+    );
+    const walk = await planNextDeparture(
+      [{ ...commitment, travelMode: "walk" }],
+      settings,
+      now,
+    );
+
+    expect("commitment" in drive).toBe(true);
+    expect("commitment" in bike).toBe(true);
+    expect("commitment" in walk).toBe(true);
+    if (!("commitment" in drive) || !("commitment" in bike) || !("commitment" in walk)) {
+      throw new Error("Expected ready plans");
+    }
+
+    expect(bike.estimate.durationSeconds).toBeGreaterThan(
+      drive.estimate.durationSeconds,
+    );
+    expect(walk.estimate.durationSeconds).toBeGreaterThan(
+      bike.estimate.durationSeconds,
+    );
+    expect(bike.leaveBy.getTime()).toBeLessThan(drive.leaveBy.getTime());
+    expect(walk.leaveBy.getTime()).toBeLessThan(bike.leaveBy.getTime());
+  });
+
   it("reports no-home when home is unset", async () => {
     const now = new Date(2026, 6, 8, 6, 0, 0);
     const result = await planNextDeparture(

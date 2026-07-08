@@ -1,8 +1,12 @@
-import type { DeparturePlan, PlanPhase } from "../core/types";
+import type { DeparturePlan, PlanPhase, TravelMode } from "../core/types";
 import type { Settings } from "../core/types";
 import type { Confidence } from "../core/confidence";
 import { formatClock, formatDuration } from "../core/time";
 import { distanceLabel } from "../core/travelDisplay";
+import {
+  TRAVEL_MODE_OPTIONS,
+  travelModeLabel,
+} from "../core/travelModes";
 import { TrafficBadge } from "./TrafficBadge";
 import { TrafficSparkline } from "./TrafficSparkline";
 import { RadialTimeline } from "./RadialTimeline";
@@ -27,6 +31,7 @@ interface Props {
   settings: Settings;
   liveStatus: LiveDepartureStatus;
   onReviewLocationConsent: () => void;
+  onTravelModeChange: (commitmentId: string, mode: TravelMode) => void;
   confidence: Confidence | null;
   briefing: BriefingControl;
 }
@@ -111,6 +116,7 @@ export function AlarmCard({
   settings,
   liveStatus,
   onReviewLocationConsent,
+  onTravelModeChange,
   confidence,
   briefing,
 }: Props) {
@@ -184,14 +190,21 @@ export function AlarmCard({
         )}
       </div>
 
-      <TrafficBadge estimate={plan.estimate} />
+      <TrafficBadge
+        estimate={plan.estimate}
+        mode={plan.commitment.travelMode}
+      />
       <PlanDetails
         plan={plan}
         settings={settings}
         prepMinutes={prepMinutes}
         now={now}
+        onTravelModeChange={onTravelModeChange}
       />
-      <TrafficSparkline leaveBy={plan.leaveBy} />
+      <TrafficSparkline
+        leaveBy={plan.leaveBy}
+        mode={plan.commitment.travelMode}
+      />
       <AlarmReliabilityNotice />
       <div className="alarm-actions">
         <button
@@ -212,13 +225,16 @@ function PlanDetails({
   settings,
   prepMinutes,
   now,
+  onTravelModeChange,
 }: {
   plan: DeparturePlan;
   settings: Settings;
   prepMinutes: number;
   now: Date;
+  onTravelModeChange: (commitmentId: string, mode: TravelMode) => void;
 }) {
   const sourceIsLive = !/simulated|offline/i.test(plan.estimate.source);
+  const currentMode = plan.commitment.travelMode;
   return (
     <div className="plan-details" aria-label="Wake time explanation">
       <div className="plan-source-row">
@@ -233,7 +249,30 @@ function PlanDetails({
         <strong>{plan.commitment.destination.label}</strong>
       </div>
       <div className="route-meta">
-        {distanceLabel(plan.estimate.distanceMeters)} · {plan.estimate.source}
+        {travelModeLabel(currentMode)} · {distanceLabel(plan.estimate.distanceMeters)} ·{" "}
+        {plan.estimate.source}
+      </div>
+      <div className="travel-mode-control">
+        <span className="field-label">Travel mode</span>
+        <div
+          className="segmented compact travel-mode-segments"
+          role="group"
+          aria-label="Travel mode"
+        >
+          {TRAVEL_MODE_OPTIONS.map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              className={`segment ${currentMode === mode.value ? "on" : ""}`}
+              onClick={() => onTravelModeChange(plan.commitment.id, mode.value)}
+              aria-pressed={currentMode === mode.value}
+              aria-label={`Use ${mode.label}`}
+            >
+              <Icon name={MODE_ICON[mode.value] ?? "pin"} size={18} />
+              <span>{mode.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
       <div className="wake-breakdown">
         <span>Arrive {formatClock(plan.arriveBy)}</span>

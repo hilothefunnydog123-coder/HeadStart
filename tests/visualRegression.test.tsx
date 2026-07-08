@@ -16,6 +16,9 @@ function visualSignature(container: HTMLElement) {
     sourceBadge: container.querySelector(".source-badge")?.textContent,
     details: Boolean(container.querySelector(".plan-details")),
     routeMap: Boolean(container.querySelector(".route-map-card")),
+    travelModes: Array.from(
+      container.querySelectorAll(".travel-mode-segments .segment"),
+    ).map((mode) => mode.textContent?.trim()),
     tabs: Array.from(container.querySelectorAll(".tab")).map((tab) =>
       tab.textContent?.trim(),
     ),
@@ -97,6 +100,12 @@ describe("visual regression contracts", () => {
           "Commitments",
           "Settings",
         ],
+        "travelModes": [
+          "Drive",
+          "Walk",
+          "Bike",
+          "Transit",
+        ],
         "viewport": "1280x900",
       }
     `);
@@ -121,6 +130,12 @@ describe("visual regression contracts", () => {
           "Alarm",
           "Commitments",
           "Settings",
+        ],
+        "travelModes": [
+          "Drive",
+          "Walk",
+          "Bike",
+          "Transit",
         ],
         "viewport": "390x844",
       }

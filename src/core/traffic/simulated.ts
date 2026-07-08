@@ -47,6 +47,21 @@ export function congestionMultiplier(departAt: Date): number {
   return 1 + morning + evening + midday;
 }
 
+export function travelModeCongestionMultiplier(
+  mode: TravelMode,
+  departAt: Date,
+): number {
+  const rawCongestion = congestionMultiplier(departAt);
+  return 1 + (rawCongestion - 1) * trafficSensitivity(mode);
+}
+
+function trafficSensitivity(mode: TravelMode): number {
+  if (mode === "walk") return 0;
+  if (mode === "cycle") return 0.15;
+  if (mode === "transit") return 0.5;
+  return 1;
+}
+
 /**
  * Deterministic pseudo-random jitter in [-amp, amp] derived from the trip's
  * coordinates and departure minute. Deterministic so estimates are stable
@@ -73,12 +88,7 @@ export const simulatedProvider: TrafficProvider = {
     const overhead = FIXED_OVERHEAD_SECONDS[mode];
     const freeFlowSeconds = overhead + distanceMeters / BASE_SPEED_MPS[mode];
 
-    // Walking and cycling are largely immune to vehicle traffic.
-    const trafficSensitivity =
-      mode === "walk" ? 0 : mode === "cycle" ? 0.15 : mode === "transit" ? 0.5 : 1;
-
-    const rawCongestion = congestionMultiplier(departAt);
-    const congestion = 1 + (rawCongestion - 1) * trafficSensitivity;
+    const congestion = travelModeCongestionMultiplier(mode, departAt);
 
     const seed =
       origin.lat * 100 + origin.lng * 10 + destination.lat + departAt.getMinutes();

@@ -53,6 +53,7 @@ describe("screen-reader behavior", () => {
         settings={settings}
         liveStatus={{ kind: "disabled" }}
         onReviewLocationConsent={() => undefined}
+        onTravelModeChange={() => undefined}
         confidence={null}
         briefing={{
           supported: false,

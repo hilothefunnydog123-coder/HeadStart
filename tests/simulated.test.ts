@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   congestionMultiplier,
   simulatedProvider,
+  travelModeCongestionMultiplier,
 } from "../src/core/traffic/simulated";
 import type { Place } from "../src/core/types";
 
@@ -21,6 +22,16 @@ describe("congestionMultiplier", () => {
     const weekday = congestionMultiplier(new Date(2026, 6, 8, 8, 15)); // Wed
     const weekend = congestionMultiplier(new Date(2026, 6, 11, 8, 15)); // Sat
     expect(weekend).toBeLessThan(weekday);
+  });
+
+  it("scales the morning curve by travel mode", () => {
+    const rush = new Date(2026, 6, 8, 8, 15);
+
+    expect(travelModeCongestionMultiplier("walk", rush)).toBe(1);
+    expect(travelModeCongestionMultiplier("cycle", rush)).toBeGreaterThan(1);
+    expect(travelModeCongestionMultiplier("cycle", rush)).toBeLessThan(
+      travelModeCongestionMultiplier("drive", rush),
+    );
   });
 });
 

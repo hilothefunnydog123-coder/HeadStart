@@ -3,7 +3,6 @@ import type {
   CalendarProviderId,
   Commitment,
   PlaceUsageContext,
-  TravelMode,
   Weekday,
 } from "../core/types";
 import type { PlaceSuggestion } from "../core/placeHistory";
@@ -16,6 +15,7 @@ import {
 import { makeId } from "../state/store";
 import { PlacePicker } from "./PlacePicker";
 import { Icon, MODE_ICON } from "./Icon";
+import { TRAVEL_MODE_OPTIONS } from "../core/travelModes";
 
 interface Props {
   commitments: Commitment[];
@@ -28,13 +28,6 @@ interface Props {
     context: PlaceUsageContext,
   ) => void;
 }
-
-const MODES: { value: TravelMode; label: string }[] = [
-  { value: "drive", label: "Drive" },
-  { value: "transit", label: "Transit" },
-  { value: "cycle", label: "Cycle" },
-  { value: "walk", label: "Walk" },
-];
 
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
 type CommitmentStep = "when" | "where" | "travel";
@@ -278,7 +271,7 @@ export function CommitmentForm({
                     <div className="field">
                       <span className="field-label">Travel mode</span>
                       <div className="segmented" role="group" aria-label="Travel mode">
-                        {MODES.map((m) => (
+                        {TRAVEL_MODE_OPTIONS.map((m) => (
                           <button
                             key={m.value}
                             type="button"

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { routeDistanceMeters } from "../core/geo";
-import { formatClock } from "../core/time";
+import { formatClock, formatDuration } from "../core/time";
 import { distanceLabel } from "../core/travelDisplay";
-import type { DeparturePlan, Place, Settings } from "../core/types";
+import type { DeparturePlan, Place, Settings, TravelMode } from "../core/types";
+import { travelModeLabel, travelModeRouteLabel } from "../core/travelModes";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -28,6 +29,7 @@ interface Bounds {
 export function RouteMap({ plan, settings, now, onEnableLocation }: Props) {
   const start = settings.home;
   const destination = plan.commitment.destination;
+  const mode = plan.commitment.travelMode;
   const location = useRouteLocation(Boolean(settings.locationTrackingEnabled && start));
 
   const projected = useMemo(
@@ -62,7 +64,7 @@ export function RouteMap({ plan, settings, now, onEnableLocation }: Props) {
       <div className="route-map-head">
         <div>
           <span className="route-map-kicker">{live ? "Live map" : "Route map"}</span>
-          <strong>{start.label} to {destination.label}</strong>
+          <strong>{travelModeRouteLabel(mode)} · {start.label} to {destination.label}</strong>
         </div>
         <span className={`route-live-chip ${live ? "on" : ""}`}>
           {live ? "Updating" : "Projected"}
@@ -130,12 +132,16 @@ export function RouteMap({ plan, settings, now, onEnableLocation }: Props) {
 
       <div className="route-map-footer">
         <div>
-          <strong>{progressLabel}% of route</strong>
+          <strong>{travelModeLabel(mode)} · {progressLabel}% of route</strong>
           <span>{statusText(location, settings.locationTrackingEnabled)}</span>
         </div>
         <div>
           <strong>{formatClock(plan.leaveBy)} leave</strong>
-          <span>{distanceLabel(plan.estimate.distanceMeters)} · arrive {formatClock(plan.arriveBy)}</span>
+          <span>
+            {formatDuration(plan.estimate.durationSeconds / 60)} ·{" "}
+            {distanceLabel(plan.estimate.distanceMeters)} · arrive{" "}
+            {formatClock(plan.arriveBy)}
+          </span>
         </div>
       </div>
 
@@ -145,7 +151,11 @@ export function RouteMap({ plan, settings, now, onEnableLocation }: Props) {
             Enable live dot
           </button>
         )}
-        <a href={openStreetMapDirectionsUrl(start, destination)} target="_blank" rel="noreferrer">
+        <a
+          href={openStreetMapDirectionsUrl(start, destination, mode)}
+          target="_blank"
+          rel="noreferrer"
+        >
           Open full map
         </a>
       </div>
@@ -290,9 +300,22 @@ function openStreetMapEmbedUrl(bounds: Bounds): string {
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik`;
 }
 
-function openStreetMapDirectionsUrl(start: Place, destination: Place): string {
+const OSM_ROUTING_ENGINE: Record<TravelMode, string | null> = {
+  drive: "fossgis_osrm_car",
+  walk: "fossgis_osrm_foot",
+  cycle: "fossgis_osrm_bike",
+  transit: null,
+};
+
+function openStreetMapDirectionsUrl(
+  start: Place,
+  destination: Place,
+  mode: TravelMode,
+): string {
   const route = `${start.lat.toFixed(5)}%2C${start.lng.toFixed(5)}%3B${destination.lat.toFixed(5)}%2C${destination.lng.toFixed(5)}`;
-  return `https://www.openstreetmap.org/directions?route=${route}`;
+  const engine = OSM_ROUTING_ENGINE[mode];
+  const engineParam = engine ? `engine=${engine}&` : "";
+  return `https://www.openstreetmap.org/directions?${engineParam}route=${route}`;
 }
 
 function percentNumber(value: CSSProperties["left"]): number {

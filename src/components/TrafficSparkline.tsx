@@ -1,9 +1,12 @@
-import { congestionMultiplier } from "../core/traffic/simulated";
+import { travelModeCongestionMultiplier } from "../core/traffic/simulated";
 import { formatClock } from "../core/time";
+import { travelModeLabel } from "../core/travelModes";
+import type { TravelMode } from "../core/types";
 
 interface Props {
   /** The instant the user is planned to leave — highlighted on the curve. */
   leaveBy: Date;
+  mode: TravelMode;
 }
 
 const W = 300;
@@ -22,7 +25,7 @@ const SAMPLES = 72;
  * at the user's planned departure. Communicates the core idea at a glance:
  * "we watch the whole rush-hour curve and pick your moment."
  */
-export function TrafficSparkline({ leaveBy }: Props) {
+export function TrafficSparkline({ leaveBy, mode }: Props) {
   const base = new Date(leaveBy);
   base.setHours(0, 0, 0, 0);
 
@@ -33,7 +36,7 @@ export function TrafficSparkline({ leaveBy }: Props) {
     const minute =
       START_HOUR * 60 + ((END_HOUR - START_HOUR) * 60 * i) / SAMPLES;
     const at = new Date(base.getTime() + minute * 60_000);
-    const value = congestionMultiplier(at);
+    const value = travelModeCongestionMultiplier(mode, at);
     points.push({ minute, value });
     if (value < min) min = value;
     if (value > max) max = value;
@@ -54,10 +57,11 @@ export function TrafficSparkline({ leaveBy }: Props) {
 
   const leaveMinute = leaveBy.getHours() * 60 + leaveBy.getMinutes();
   const clampedLeave = Math.min(END_HOUR * 60, Math.max(START_HOUR * 60, leaveMinute));
-  const leaveValue = congestionMultiplier(leaveBy);
+  const leaveValue = travelModeCongestionMultiplier(mode, leaveBy);
   const leaveX = x(clampedLeave);
   const leaveY = y(leaveValue);
-  const ariaLabel = `Traffic estimate from ${START_HOUR} AM to ${END_HOUR} AM. Planned departure is ${formatClock(
+  const title = sparklineTitle(mode);
+  const ariaLabel = `${title} from ${START_HOUR} AM to ${END_HOUR} AM. Planned departure is ${formatClock(
     leaveBy,
   )}.`;
 
@@ -66,7 +70,7 @@ export function TrafficSparkline({ leaveBy }: Props) {
   return (
     <div className="sparkline">
       <div className="sparkline-head">
-        <span className="sparkline-title">Traffic across your morning</span>
+        <span className="sparkline-title">{title}</span>
         <span className="sparkline-leave">Leave {formatClock(leaveBy)}</span>
       </div>
       <svg
@@ -124,4 +128,9 @@ export function TrafficSparkline({ leaveBy }: Props) {
       </svg>
     </div>
   );
+}
+
+function sparklineTitle(mode: TravelMode): string {
+  if (mode === "drive") return "Traffic across your morning";
+  return `${travelModeLabel(mode)} timing across your morning`;
 }
