@@ -1,0 +1,405 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © hilothefunnydog123
+//
+// X LEVELS — STRATEGY VERSION
+// Trades retests of 1m XVX levels (aligned-body-edge 1m FVG midpoints from the
+// X Levels indicator). When price comes back and taps a stored level, it enters
+// in the level's direction with a fixed-point stop beyond the level and an
+// R-multiple target. Levels are consumed after they trade (one shot each).
+// Designed for the 1-minute NQ chart.
+
+//@version=5
+strategy("X Levels Strategy", overlay=true,
+     initial_capital = 25000,
+     default_qty_type = strategy.fixed,
+     default_qty_value = 1,
+     commission_type = strategy.commission.cash_per_contract,
+     commission_value = 1.4,
+     slippage = 1,
+     max_lines_count = 300, max_labels_count = 300)
+
+//--------------------------------------------------
+// Inputs — level detection (identical to the indicator)
+//--------------------------------------------------
+alignPts      = input.float(5.0, "Body-edge alignment max pts", step=0.25)
+minGapPts     = input.float(1.0, "Minimum 1m FVG gap pts", step=0.25)
+minImpulsePts = input.float(0.0, "Min displacement from level", step=0.25)
+
+tagHtf        = input.bool(true, "Tag HTF FVG confluence")
+requireHtf    = input.bool(false, "Only keep levels with HTF confluence")
+requireInside = input.bool(false, "Require inside HTF FVG")
+nearPts       = input.float(5.0, "Near HTF FVG pts", step=0.25)
+
+use5m  = input.bool(true, "Use 5m")
+use15m = input.bool(true, "Use 15m")
+use1h  = input.bool(false, "Use 1h")
+use4h  = input.bool(false, "Use 4h")
+
+showBullish = input.bool(true, "Track bullish XVX")
+showBearish = input.bool(true, "Track bearish XVX")
+
+maxLevels = input.int(80, "Max stored XVX levels", minval=5, maxval=300)
+maxFvgs   = input.int(200, "Max stored HTF FVGs per TF", minval=20, maxval=500)
+
+dupPts        = input.float(3.0, "Duplicate level tolerance pts", step=0.25)
+deleteOnTap   = input.bool(true,  "Delete level after any tap", tooltip="Traded levels are always consumed; this also removes levels tapped while a position was open or filters blocked the trade")
+deleteInvalid = input.bool(true,  "Delete invalidated levels")
+invalidPts    = input.float(5.0,  "Invalid close through by pts", step=0.25)
+maxAgeBars    = input.int(0,      "Max level age (bars, 0 = unlimited)", minval=0)
+
+//--------------------------------------------------
+// Inputs — trading
+//--------------------------------------------------
+grpT = "Trade settings"
+allowLong  = input.bool(true,  "Take long taps (bullish levels)",  group=grpT)
+allowShort = input.bool(false, "Take short taps (bearish levels)", group=grpT)
+minGradeS  = input.string("Any", "Minimum level grade", options=["Any", "B (any HTF)", "A or better", "A+ only"], group=grpT)
+rejectClose = input.bool(true, "Tap bar must close back beyond the level", group=grpT)
+stopPts    = input.float(10.0, "Stop distance beyond level (pts)", minval=0.25, step=0.25, group=grpT)
+tpR        = input.float(1.5,  "Take-profit (R multiple)", minval=0.1, step=0.1, group=grpT)
+useBE      = input.bool(false, "Move stop to breakeven", group=grpT)
+beTrigger  = input.float(0.7,  "└ Breakeven trigger (R)", minval=0.1, step=0.1, group=grpT)
+beOffTicks = input.int(2,      "└ Breakeven offset (ticks)", minval=0, group=grpT)
+
+grpP = "Trade pacing"
+useSession = input.bool(false, "Limit entries to a session", group=grpP)
+sess       = input.session("0830-1500", "Session (exchange time)", group=grpP)
+maxPerDay  = input.int(0, "Max trades per day (0 = unlimited)", minval=0, group=grpP)
+maxLossDay = input.int(0, "Stop after N losses in a day (0 = off)", minval=0, group=grpP)
+
+minGrade = minGradeS == "A+ only" ? 3 : minGradeS == "A or better" ? 2 : minGradeS == "B (any HTF)" ? 1 : 0
+
+//--------------------------------------------------
+// HTF FVG storage
+//--------------------------------------------------
+var float[] fvg5Lo = array.new_float()
+var float[] fvg5Hi = array.new_float()
+var int[]   fvg5Dir = array.new_int()
+
+var float[] fvg15Lo = array.new_float()
+var float[] fvg15Hi = array.new_float()
+var int[]   fvg15Dir = array.new_int()
+
+var float[] fvg1hLo = array.new_float()
+var float[] fvg1hHi = array.new_float()
+var int[]   fvg1hDir = array.new_int()
+
+var float[] fvg4hLo = array.new_float()
+var float[] fvg4hHi = array.new_float()
+var int[]   fvg4hDir = array.new_int()
+
+var float[] hi5Hist = array.new_float()
+var float[] lo5Hist = array.new_float()
+var float cur5Hi = na
+var float cur5Lo = na
+
+var float[] hi15Hist = array.new_float()
+var float[] lo15Hist = array.new_float()
+var float cur15Hi = na
+var float cur15Lo = na
+
+var float[] hi1hHist = array.new_float()
+var float[] lo1hHist = array.new_float()
+var float cur1hHi = na
+var float cur1hLo = na
+
+var float[] hi4hHist = array.new_float()
+var float[] lo4hHist = array.new_float()
+var float cur4hHi = na
+var float cur4hLo = na
+
+//--------------------------------------------------
+// Helpers
+//--------------------------------------------------
+f_trim_fvg(_loArr, _hiArr, _dirArr) =>
+    if array.size(_loArr) > maxFvgs
+        array.shift(_loArr)
+        array.shift(_hiArr)
+        array.shift(_dirArr)
+
+f_add_fvg(_loArr, _hiArr, _dirArr, _lo, _hi, _dir) =>
+    array.push(_loArr, _lo)
+    array.push(_hiArr, _hi)
+    array.push(_dirArr, _dir)
+    f_trim_fvg(_loArr, _hiArr, _dirArr)
+
+f_clean_fvgs(_loArr, _hiArr, _dirArr) =>
+    if array.size(_loArr) > 0
+        for i = array.size(_loArr) - 1 to 0
+            lo = array.get(_loArr, i)
+            hi = array.get(_hiArr, i)
+            dir = array.get(_dirArr, i)
+            inversed = dir == 1 ? close < lo : close > hi
+            if inversed
+                array.remove(_loArr, i)
+                array.remove(_hiArr, i)
+                array.remove(_dirArr, i)
+
+f_match_fvg(_price, _dir, _loArr, _hiArr, _dirArr) =>
+    hit = false
+    if array.size(_loArr) > 0
+        for i = 0 to array.size(_loArr) - 1
+            lo = array.get(_loArr, i)
+            hi = array.get(_hiArr, i)
+            d  = array.get(_dirArr, i)
+            inside = _price >= lo and _price <= hi
+            near   = inside or math.abs(_price - lo) <= nearPts or math.abs(_price - hi) <= nearPts
+            valid  = requireInside ? inside : near
+            if d == _dir and valid
+                hit := true
+    hit
+
+// rolling HTF bar builder + 3-bar FVG detection for one timeframe
+f_build(_new, _curHi, _curLo, _hiHist, _loHist, _loArr, _hiArr, _dirArr) =>
+    float newHi = _curHi
+    float newLo = _curLo
+    if na(newHi)
+        newHi := high
+        newLo := low
+    else if _new
+        array.push(_hiHist, newHi)
+        array.push(_loHist, newLo)
+        if array.size(_hiHist) > 10
+            array.shift(_hiHist)
+            array.shift(_loHist)
+        if array.size(_hiHist) >= 3
+            s = array.size(_hiHist)
+            c0Hi = array.get(_hiHist, s - 3)
+            c0Lo = array.get(_loHist, s - 3)
+            c2Hi = array.get(_hiHist, s - 1)
+            c2Lo = array.get(_loHist, s - 1)
+            if c2Lo > c0Hi
+                f_add_fvg(_loArr, _hiArr, _dirArr, c0Hi, c2Lo, 1)
+            if c2Hi < c0Lo
+                f_add_fvg(_loArr, _hiArr, _dirArr, c2Hi, c0Lo, -1)
+        newHi := high
+        newLo := low
+    else
+        newHi := math.max(newHi, high)
+        newLo := math.min(newLo, low)
+    [newHi, newLo]
+
+//--------------------------------------------------
+// Build HTF FVG memory
+//--------------------------------------------------
+[n5Hi, n5Lo] = f_build(ta.change(time("5")) != 0, cur5Hi, cur5Lo, hi5Hist, lo5Hist, fvg5Lo, fvg5Hi, fvg5Dir)
+cur5Hi := n5Hi
+cur5Lo := n5Lo
+
+[n15Hi, n15Lo] = f_build(ta.change(time("15")) != 0, cur15Hi, cur15Lo, hi15Hist, lo15Hist, fvg15Lo, fvg15Hi, fvg15Dir)
+cur15Hi := n15Hi
+cur15Lo := n15Lo
+
+[n1hHi, n1hLo] = f_build(ta.change(time("60")) != 0, cur1hHi, cur1hLo, hi1hHist, lo1hHist, fvg1hLo, fvg1hHi, fvg1hDir)
+cur1hHi := n1hHi
+cur1hLo := n1hLo
+
+[n4hHi, n4hLo] = f_build(ta.change(time("240")) != 0, cur4hHi, cur4hLo, hi4hHist, lo4hHist, fvg4hLo, fvg4hHi, fvg4hDir)
+cur4hHi := n4hHi
+cur4hLo := n4hLo
+
+f_clean_fvgs(fvg5Lo, fvg5Hi, fvg5Dir)
+f_clean_fvgs(fvg15Lo, fvg15Hi, fvg15Dir)
+f_clean_fvgs(fvg1hLo, fvg1hHi, fvg1hDir)
+f_clean_fvgs(fvg4hLo, fvg4hHi, fvg4hDir)
+
+//--------------------------------------------------
+// 1m XVX structure
+//--------------------------------------------------
+bullCminus1 = math.min(open[3], close[3])
+bullC0      = math.min(open[2], close[2])
+bullAlign   = math.abs(bullCminus1 - bullC0)
+bullLevel   = (bullCminus1 + bullC0) / 2.0
+bullFvg     = low > high[2]
+bullGap     = low - high[2]
+bullImpulse = close - bullLevel
+
+bullRaw = showBullish and bullFvg and bullGap >= minGapPts and bullAlign <= alignPts and bullImpulse >= minImpulsePts
+
+bearCminus1 = math.max(open[3], close[3])
+bearC0      = math.max(open[2], close[2])
+bearAlign   = math.abs(bearCminus1 - bearC0)
+bearLevel   = (bearCminus1 + bearC0) / 2.0
+bearFvg     = high < low[2]
+bearGap     = low[2] - high
+bearImpulse = bearLevel - close
+
+bearRaw = showBearish and bearFvg and bearGap >= minGapPts and bearAlign <= alignPts and bearImpulse >= minImpulsePts
+
+//--------------------------------------------------
+// HTF matching / grading
+//--------------------------------------------------
+bull5Match  = use5m  and f_match_fvg(bullLevel, 1, fvg5Lo, fvg5Hi, fvg5Dir)
+bull15Match = use15m and f_match_fvg(bullLevel, 1, fvg15Lo, fvg15Hi, fvg15Dir)
+bull1hMatch = use1h  and f_match_fvg(bullLevel, 1, fvg1hLo, fvg1hHi, fvg1hDir)
+bull4hMatch = use4h  and f_match_fvg(bullLevel, 1, fvg4hLo, fvg4hHi, fvg4hDir)
+
+bear5Match  = use5m  and f_match_fvg(bearLevel, -1, fvg5Lo, fvg5Hi, fvg5Dir)
+bear15Match = use15m and f_match_fvg(bearLevel, -1, fvg15Lo, fvg15Hi, fvg15Dir)
+bear1hMatch = use1h  and f_match_fvg(bearLevel, -1, fvg1hLo, fvg1hHi, fvg1hDir)
+bear4hMatch = use4h  and f_match_fvg(bearLevel, -1, fvg4hLo, fvg4hHi, fvg4hDir)
+
+bullAnyHtf = bull5Match or bull15Match or bull1hMatch or bull4hMatch
+bearAnyHtf = bear5Match or bear15Match or bear1hMatch or bear4hMatch
+
+// grade as int: 3 = A+, 2 = A, 1 = B, 0 = none
+bullGradeI = bull5Match and bull15Match ? 3 : bull5Match or bull15Match ? 2 : bullAnyHtf ? 1 : 0
+bearGradeI = bear5Match and bear15Match ? 3 : bear5Match or bear15Match ? 2 : bearAnyHtf ? 1 : 0
+
+bullValid = bullRaw and (not requireHtf or bullAnyHtf)
+bearValid = bearRaw and (not requireHtf or bearAnyHtf)
+
+//--------------------------------------------------
+// Level storage
+//--------------------------------------------------
+var line[]  lvlLines = array.new_line()
+var float[] lvls     = array.new_float()
+var int[]   dirs     = array.new_int()
+var int[]   grades   = array.new_int()
+var int[]   bornBars = array.new_int()
+
+f_duplicate(_level, _dir) =>
+    dup = false
+    if array.size(lvls) > 0
+        for i = 0 to array.size(lvls) - 1
+            if array.get(dirs, i) == _dir and math.abs(array.get(lvls, i) - _level) <= dupPts
+                dup := true
+    dup
+
+f_add_level(_level, _dir, _gradeI) =>
+    if not f_duplicate(_level, _dir)
+        if array.size(lvls) >= maxLevels
+            line.delete(array.shift(lvlLines))
+            array.shift(lvls)
+            array.shift(dirs)
+            array.shift(grades)
+            array.shift(bornBars)
+        col = _gradeI == 3 ? color.aqua : _gradeI == 2 ? color.new(color.aqua, 15) : color.new(color.aqua, 35)
+        array.push(lvlLines, line.new(bar_index - 3, _level, bar_index + 1, _level, extend=extend.right, color=col, width=_gradeI == 3 ? 2 : 1))
+        array.push(lvls, _level)
+        array.push(dirs, _dir)
+        array.push(grades, _gradeI)
+        array.push(bornBars, bar_index)
+
+if bullValid
+    f_add_level(bullLevel, 1, bullGradeI)
+if bearValid
+    f_add_level(bearLevel, -1, bearGradeI)
+
+//--------------------------------------------------
+// Trade gating
+//--------------------------------------------------
+var int tradesToday = 0
+var int lossesToday = 0
+if ta.change(time("D")) != 0
+    tradesToday := 0
+    lossesToday := 0
+lossDelta = ta.change(strategy.losstrades)
+if lossDelta > 0
+    lossesToday += lossDelta
+
+inSession = not useSession or not na(time(timeframe.period, sess))
+dayOk     = maxPerDay == 0 or tradesToday < maxPerDay
+lossOk    = maxLossDay == 0 or lossesToday < maxLossDay
+canTrade  = strategy.position_size == 0 and inSession and dayOk and lossOk
+
+//--------------------------------------------------
+// Tap detection + entries + cleanup (one pass)
+//--------------------------------------------------
+float sigLvl = na
+int   sigDir = 0
+
+if array.size(lvls) > 0
+    for i = array.size(lvls) - 1 to 0
+        lvl  = array.get(lvls, i)
+        dir  = array.get(dirs, i)
+        gr   = array.get(grades, i)
+        born = array.get(bornBars, i)
+
+        canCheck = bar_index > born
+        tapped   = canCheck and low <= lvl and high >= lvl
+        invalid  = canCheck and (dir == 1 ? close < lvl - invalidPts : close > lvl + invalidPts)
+        expired  = maxAgeBars > 0 and bar_index - born > maxAgeBars
+
+        wantTrade = tapped and canTrade and na(sigLvl) and gr >= minGrade and
+             (dir == 1 ? allowLong and (not rejectClose or close >= lvl) :
+                         allowShort and (not rejectClose or close <= lvl))
+
+        if wantTrade
+            sigLvl := lvl
+            sigDir := dir
+
+        if wantTrade or (deleteOnTap and tapped) or (deleteInvalid and invalid) or expired
+            line.delete(array.get(lvlLines, i))
+            array.remove(lvlLines, i)
+            array.remove(lvls, i)
+            array.remove(dirs, i)
+            array.remove(grades, i)
+            array.remove(bornBars, i)
+
+var float trStop = na
+var float trTp   = na
+var bool  beDone = false
+
+if not na(sigLvl)
+    if sigDir == 1
+        stop = sigLvl - stopPts
+        risk = close - stop
+        if risk > 0
+            trStop := stop
+            trTp   := close + tpR * risk
+            beDone := false
+            tradesToday += 1
+            strategy.entry("Long", strategy.long)
+            strategy.exit("XL", from_entry="Long", stop=trStop, limit=trTp)
+    else
+        stop = sigLvl + stopPts
+        risk = stop - close
+        if risk > 0
+            trStop := stop
+            trTp   := close - tpR * risk
+            beDone := false
+            tradesToday += 1
+            strategy.entry("Short", strategy.short)
+            strategy.exit("XS", from_entry="Short", stop=trStop, limit=trTp)
+
+// breakeven management
+if useBE and not beDone and strategy.position_size != 0
+    avg = strategy.position_avg_price
+    if strategy.position_size > 0
+        risk0 = avg - trStop
+        if risk0 > 0 and high >= avg + beTrigger * risk0
+            trStop := avg + beOffTicks * syminfo.mintick
+            beDone := true
+            strategy.exit("XL", from_entry="Long", stop=trStop, limit=trTp)
+    else
+        risk0 = trStop - avg
+        if risk0 > 0 and low <= avg - beTrigger * risk0
+            trStop := avg - beOffTicks * syminfo.mintick
+            beDone := true
+            strategy.exit("XS", from_entry="Short", stop=trStop, limit=trTp)
+
+plotshape(not na(sigLvl) and sigDir == 1, "Long tap", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.tiny)
+plotshape(not na(sigLvl) and sigDir == -1, "Short tap", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.tiny)
+
+//--------------------------------------------------
+// Live performance panel
+//--------------------------------------------------
+showStats = input.bool(true, "Show performance panel", group="Display")
+var table perfT = table.new(position.bottom_right, 2, 4, border_width=1)
+if showStats and barstate.islast
+    total = strategy.closedtrades
+    wins  = strategy.wintrades
+    wr    = total > 0 ? 100.0 * wins / total : na
+    pf    = strategy.grossloss > 0 ? strategy.grossprofit / strategy.grossloss : na
+    hdr   = color.new(color.gray, 60)
+    okC   = color.new(color.green, 75)
+    badC  = color.new(color.red, 80)
+    table.cell(perfT, 0, 0, "Trades", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 0, str.tostring(total), text_color=color.white, text_size=size.small, bgcolor=total >= 100 ? okC : badC)
+    table.cell(perfT, 0, 1, "Win rate", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 1, na(wr) ? "—" : str.tostring(wr, "#.#") + "%", text_color=color.white, text_size=size.small, bgcolor=na(wr) ? badC : wr >= 60 ? okC : badC)
+    table.cell(perfT, 0, 2, "Profit factor", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 2, na(pf) ? "—" : str.tostring(pf, "#.##"), text_color=color.white, text_size=size.small, bgcolor=na(pf) ? badC : pf >= 1.75 ? okC : badC)
+    table.cell(perfT, 0, 3, "Net profit", bgcolor=hdr, text_color=color.white, text_size=size.small)
+    table.cell(perfT, 1, 3, str.tostring(strategy.netprofit, "#"), text_color=color.white, text_size=size.small, bgcolor=strategy.netprofit > 0 ? okC : badC)

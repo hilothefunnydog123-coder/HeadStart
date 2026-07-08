@@ -20,30 +20,6 @@
 // Run this on a 1m, 3m, 5m, or 15m chart. Above 15m the FVG engines are
 // disabled (a warning is shown) because 5m/15m gaps can't be built from
 // larger bars.
-//
-// ---------------------------------------------------------------------------
-// SUGGESTED PRESETS (set these by hand in the settings panel; the on-chart
-// performance panel shows WR / PF / trade count live as you flip toggles)
-//
-//  A. TREND RUNNER (highest expectancy, lower win rate ~45%)
-//     TP 2.5R+ or swing cap OFF, ATR floor OFF, entry Market,
-//     dedup + structure + cloud-overlap ON (defaults)
-//
-//  B. NOISE-PROOF (win-rate oriented, single target)
-//     ATR floor ON at 1.2-1.5, TP 1.5-2R, breakeven ON trigger 0.7R,
-//     stop after 2 losses/day, session 0830-1200
-//
-//  C. SNIPER (few trades, highest per-trade quality)
-//     Preset B + liquidity sweep ON + ADX ON (min 20) + max 2 trades/day
-//
-// A NOTE ON TARGETS LIKE "80% WIN RATE + PROFIT FACTOR 5": that combination
-// implies winning 4 of 5 trades with winners 1.25x losers, sustained. No
-// verified intraday futures system publishes numbers like that. If a
-// backtest shows it, the usual causes are: too few trades (luck), repainting
-// / lookahead bias, unrealistic fills, or settings curve-fit to one date
-// range. Judge configs by expectancy and drawdown across MULTIPLE date
-// ranges, with trade count >= 100.
-// ---------------------------------------------------------------------------
 // ============================================================================
 
 strategy("EMA Cloud + 5m/15m FVG Tap [NQ, Long]",
@@ -51,7 +27,7 @@ strategy("EMA Cloud + 5m/15m FVG Tap [NQ, Long]",
      overlay = true,
      initial_capital = 25000,
      default_qty_type = strategy.fixed,
-     default_qty_value = 2,   // >= 2 contracts required for the scale-out exit mode
+     default_qty_value = 1,
      commission_type = strategy.commission.cash_per_contract,
      commission_value = 1.4,
      slippage = 1,
@@ -74,63 +50,16 @@ fvgMode     = input.string("Either TF", "Tap must align with FVG on", options = 
 minGapTicks = input.int(0,  "Minimum gap size (ticks)",        minval = 0,             group = grpFvg)
 maxZones    = input.int(12, "Max active zones kept per TF",    minval = 1, maxval = 40, group = grpFvg)
 showBoxes   = input.bool(true, "Draw FVG boxes", group = grpFvg)
-firstTapOnly = input.bool(false, "Only trade the FIRST tap of each zone", group = grpFvg)
-useCloudFvg  = input.bool(true, "FVG zone must overlap the EMA cloud (true confluence)", group = grpFvg)
-
-grpFilt = "Entry quality filters (all optional — toggle one at a time)"
-useSlope    = input.bool(false, "Cloud slope: both EMAs must be rising", group = grpFilt)
-slopeBars   = input.int(3,      "└ Slope lookback (bars)", minval = 1, group = grpFilt)
-useThick    = input.bool(false, "Min cloud thickness (trend strength)", group = grpFilt)
-thickAtr    = input.float(0.3,  "└ Thickness (ATR-14 multiple)", minval = 0.0, step = 0.05, group = grpFilt)
-useCandle   = input.bool(false, "Rejection candle: close in top % of bar range", group = grpFilt)
-closePosPct = input.float(60,   "└ Close position (% of range)", minval = 0, maxval = 100, group = grpFilt)
-useVol      = input.bool(false, "Tap bar volume above average", group = grpFilt)
-volMult     = input.float(1.2,  "└ Volume multiple of 20-bar average", minval = 0.1, step = 0.1, group = grpFilt)
-useHtfTrend = input.bool(false, "1-hour trend filter: close above 1h EMA", group = grpFilt)
-htfTrendLen = input.int(50,     "└ 1h EMA length", minval = 1, group = grpFilt)
-useVwap     = input.bool(false, "Price must be above session VWAP", group = grpFilt)
-useAdx      = input.bool(false, "ADX trend-strength filter (skip range days)", group = grpFilt)
-adxMin      = input.float(20,   "└ Min ADX(14)", minval = 5, step = 1, group = grpFilt)
-useStruct   = input.bool(true,  "Fresh structure: recent break of a swing high", group = grpFilt)
-structLen   = input.int(20,     "└ Swing high lookback (bars)", minval = 2, group = grpFilt)
-structWithin = input.int(10,    "└ Break must be within last N bars", minval = 1, group = grpFilt)
-useSweep    = input.bool(false, "Liquidity sweep: wick below a prior low, reclaimed", group = grpFilt)
-sweepLen    = input.int(10,     "└ Prior low lookback (bars)", minval = 2, group = grpFilt)
-sweepWithin = input.int(3,      "└ Sweep within last N bars", minval = 1, group = grpFilt)
-useDayOpen  = input.bool(false, "Longs only above the daily open", group = grpFilt)
-usePbReset  = input.bool(true,  "One trade per pullback (re-arm above fast EMA)", group = grpFilt)
-pbResetBars = input.int(2,      "└ Closes above fast EMA needed to re-arm", minval = 1, group = grpFilt)
-maxStretch  = input.float(0.0,  "Max distance of close above fast EMA (ATR mult, 0 = off)", minval = 0.0, step = 0.1, group = grpFilt)
 
 grpRisk = "Risk management"
-entryMode    = input.string("Market", "Entry type", options = ["Market", "Limit at fast EMA", "Limit at signal bar 50%"], group = grpRisk)
-limitTtl     = input.int(3,    "└ Cancel unfilled limit after N bars", minval = 1, group = grpRisk)
 stopBasis    = input.string("FVG bottom", "Stop placement", options = ["FVG bottom", "Slow EMA", "Lowest of both"], group = grpRisk)
 stopBufTicks = input.int(8,    "Stop buffer (ticks)",       minval = 0,               group = grpRisk)
-useAtrFloor  = input.bool(false, "Minimum stop distance (ATR floor)", group = grpRisk)
-atrFloorMult = input.float(1.2,  "└ Min stop distance (ATR-14 multiple)", minval = 0.1, step = 0.1, group = grpRisk)
-exitStyle    = input.string("Single target", "Exit style", options = ["Single target", "Scale-out (2 targets)"], group = grpRisk)
-rMult        = input.float(2.0, "Single target: take-profit (R multiple)", minval = 0.1, step = 0.1, group = grpRisk)
-tp1R         = input.float(0.75, "Scale-out: TP1 (R)", minval = 0.1, step = 0.05, group = grpRisk)
-tp1Pct       = input.int(50,     "Scale-out: TP1 position %", minval = 10, maxval = 90, step = 10, group = grpRisk)
-tp2R         = input.float(2.5,  "Scale-out: TP2 (R)", minval = 0.2, step = 0.1, group = grpRisk)
-beAfterTp1   = input.bool(true,  "Scale-out: stop to breakeven after TP1 fills", group = grpRisk)
+rMult        = input.float(2.0, "Take-profit (R multiple)", minval = 0.1, step = 0.1, group = grpRisk)
 exitOnFlip   = input.bool(true, "Also exit if the cloud flips bearish", group = grpRisk)
-useBE        = input.bool(false, "Move stop to breakeven", group = grpRisk)
-beTrigger    = input.float(0.6,  "└ Breakeven trigger (R)", minval = 0.1, step = 0.1, group = grpRisk)
-beOffTicks   = input.int(2,      "└ Breakeven offset (ticks past entry)", minval = 0, group = grpRisk)
-maxPerDay    = input.int(0,      "Max trades per day (0 = unlimited)", minval = 0, group = grpRisk)
-maxLossDay   = input.int(0,      "Stop trading after N losses in a day (0 = off)", minval = 0, group = grpRisk)
-cooldownBars = input.int(0,      "Cooldown bars between entries (0 = off)", minval = 0, group = grpRisk)
-useSwingCap  = input.bool(false, "Cap single target at recent swing high", group = grpRisk)
-swingLen     = input.int(20,     "└ Swing high lookback (bars)", minval = 2, group = grpRisk)
-minRR        = input.float(0.5,  "└ Min reward:risk to still take the trade", minval = 0.1, step = 0.1, group = grpRisk)
 
 grpSess    = "Session filter"
 useSession = input.bool(false, "Limit entries to a session", group = grpSess)
 sess       = input.session("0830-1500", "Session (exchange time)", group = grpSess)
-useLunchSkip = input.bool(false, "Skip lunch chop", group = grpSess)
-lunchSess    = input.session("1030-1230", "Lunch session (exchange time; CME = Chicago)", group = grpSess)
 
 // ----------------------------------------------------------------------------
 // EMA cloud — chart timeframe, so it adapts when you change timeframes
@@ -166,10 +95,9 @@ f_htf(tf) =>
 // closes below its bottom (fully filled / invalidated).
 // Returns: [tap bar overlaps an active zone, lowest bottom of overlapped zones]
 // ----------------------------------------------------------------------------
-f_trackFvg(float hi, float lo, int tm, bool enabled, bool firstOnly, color zoneColor) =>
+f_trackFvg(float hi, float lo, int tm, bool enabled, color zoneColor) =>
     var tops    = array.new_float()
     var bottoms = array.new_float()
-    var touched = array.new_bool()    // has this zone been tapped before?
     var zBoxes  = array.new_box()
     var confHi  = array.new_float()   // last 3 CONFIRMED HTF highs
     var confLo  = array.new_float()   // last 3 CONFIRMED HTF lows
@@ -188,7 +116,6 @@ f_trackFvg(float hi, float lo, int tm, bool enabled, bool firstOnly, color zoneC
                 if not na(gapBottom) and not na(gapTop) and gapTop - gapBottom > minGapTicks * syminfo.mintick
                     array.push(tops, gapTop)
                     array.push(bottoms, gapBottom)
-                    array.push(touched, false)
                     array.push(zBoxes, showBoxes
                          ? box.new(bar_index, gapTop, bar_index, gapBottom,
                              border_color = color.new(zoneColor, 40),
@@ -199,7 +126,6 @@ f_trackFvg(float hi, float lo, int tm, bool enabled, bool firstOnly, color zoneC
                         box.delete(array.shift(zBoxes))
                         array.shift(tops)
                         array.shift(bottoms)
-                        array.shift(touched)
         // drop zones that price has closed below (gap filled / invalidated)
         if array.size(tops) > 0
             for i = array.size(tops) - 1 to 0
@@ -208,26 +134,19 @@ f_trackFvg(float hi, float lo, int tm, bool enabled, bool firstOnly, color zoneC
                     array.remove(zBoxes, i)
                     array.remove(tops, i)
                     array.remove(bottoms, i)
-                    array.remove(touched, i)
 
     inZone = false
     float zoneBottom = na
     if enabled and array.size(tops) > 0
-        cTop = math.max(emaFast, emaSlow)
-        cBot = math.min(emaFast, emaSlow)
         for i = 0 to array.size(tops) - 1
-            zTop = array.get(tops, i)
-            zBot = array.get(bottoms, i)
-            if low <= zTop and high >= zBot
-                cloudHit = not useCloudFvg or (zTop >= cBot and zBot <= cTop)
-                if cloudHit and (not firstOnly or not array.get(touched, i))
-                    inZone := true
-                    zoneBottom := na(zoneBottom) ? zBot : math.min(zoneBottom, zBot)
-                array.set(touched, i, true)
+            if low <= array.get(tops, i) and high >= array.get(bottoms, i)
+                inZone := true
+                b = array.get(bottoms, i)
+                zoneBottom := na(zoneBottom) ? b : math.min(zoneBottom, b)
     [inZone, zoneBottom]
 
-[fvg5,  bot5]  = f_trackFvg(h5,  l5,  t5,  ok5,  firstTapOnly, color.blue)
-[fvg15, bot15] = f_trackFvg(h15, l15, t15, ok15, firstTapOnly, color.purple)
+[fvg5,  bot5]  = f_trackFvg(h5,  l5,  t5,  ok5,  color.blue)
+[fvg15, bot15] = f_trackFvg(h15, l15, t15, ok15, color.purple)
 
 anyFvgTf   = ok5 or ok15
 alignBoth  = anyFvgTf and (not ok5 or fvg5) and (not ok15 or fvg15)
@@ -241,69 +160,9 @@ if fvg15
     fvgBottom := na(fvgBottom) ? bot15 : math.min(fvgBottom, bot15)
 
 // ----------------------------------------------------------------------------
-// Entry quality filters (each one is a no-op unless enabled)
-// ----------------------------------------------------------------------------
-atr14  = ta.atr(14)
-volSma = ta.sma(volume, 20)
-htfEma = request.security(syminfo.tickerid, "60", ta.ema(close, htfTrendLen)[1], lookahead = barmerge.lookahead_on)
-
-vwapVal   = ta.vwap(hlc3)
-swingHigh = ta.highest(high, swingLen)
-
-barRange  = high - low
-slopeOk   = not useSlope    or (emaFast > emaFast[slopeBars] and emaSlow > emaSlow[slopeBars])
-thickOk   = not useThick    or (emaFast - emaSlow) >= thickAtr * atr14
-candleOk  = not useCandle   or (barRange > 0 and (close - low) / barRange >= closePosPct / 100)
-volOk     = not useVol      or volume > volSma * volMult
-htfOk     = not useHtfTrend or close > htfEma
-vwapOk    = not useVwap     or close > vwapVal
-stretchOk = maxStretch == 0 or close - emaFast <= maxStretch * atr14
-
-// structure / sweep / regime confluences
-[diPlus, diMinus, adxVal] = ta.dmi(14, 14)
-hhPrev    = ta.highest(high, structLen)[1]
-bosBars   = ta.barssince(high > hhPrev)
-priorLow  = ta.lowest(low, sweepLen)[1]
-sweepBars = ta.barssince(low < priorLow and close > priorLow)
-dayOpen   = request.security(syminfo.tickerid, "D", open, lookahead = barmerge.lookahead_on)
-
-adxOk     = not useAdx     or adxVal >= adxMin
-structOk  = not useStruct  or (not na(bosBars) and bosBars <= structWithin)
-sweepOk   = not useSweep   or (not na(sweepBars) and sweepBars <= sweepWithin)
-dayOpenOk = not useDayOpen or close > dayOpen
-
-// one-trade-per-pullback state: after a signal, price must first leave the
-// cloud again (close above the fast EMA for N bars) before a new tap counts
-var bool pbArmed  = true
-var int aboveFast = 0
-aboveFast := close > emaFast ? aboveFast + 1 : 0
-if not pbArmed and aboveFast >= pbResetBars
-    pbArmed := true
-pbOk = not usePbReset or pbArmed
-
-plot(useVwap ? vwapVal : na, "Session VWAP", color = color.new(color.yellow, 30))
-
-// ----------------------------------------------------------------------------
-// Trade pacing: daily cap and cooldown between entries
-// ----------------------------------------------------------------------------
-var int tradesToday  = 0
-var int lossesToday  = 0
-var int lastEntryBar = na
-if ta.change(time("D")) != 0
-    tradesToday := 0
-    lossesToday := 0
-lossDelta = ta.change(strategy.losstrades)
-if lossDelta > 0
-    lossesToday += lossDelta
-dayOk      = maxPerDay == 0 or tradesToday < maxPerDay
-lossOk     = maxLossDay == 0 or lossesToday < maxLossDay
-cooldownOk = cooldownBars == 0 or na(lastEntryBar) or bar_index - lastEntryBar > cooldownBars
-
-// ----------------------------------------------------------------------------
-// Entry logic: bullish cloud + tap into the cloud + FVG alignment + filters
+// Entry logic: bullish cloud + tap into the cloud + FVG alignment
 // ----------------------------------------------------------------------------
 inSession = not useSession or not na(time(timeframe.period, sess))
-lunchOk   = not useLunchSkip or na(time(timeframe.period, lunchSess))
 
 cloudTap = bullCloud
      and low <= emaFast                                  // price reached into the cloud
@@ -315,104 +174,17 @@ longCond = cloudTap
      and anyFvgTf
      and inSession
      and (not useTrendEma or close > emaTrend)
-     and slopeOk and thickOk and candleOk and volOk and htfOk and vwapOk and stretchOk
-     and adxOk and structOk and sweepOk and dayOpenOk and pbOk and lunchOk
-     and dayOk and lossOk and cooldownOk
-
-// a fired signal consumes this pullback until price re-arms above the fast EMA
-if longCond
-    pbArmed := false
-
-scaleOut = exitStyle == "Scale-out (2 targets)"
-
-var float trStop   = na
-var float trTp     = na
-var float trTp1    = na
-var bool  beDone   = false
-var bool  tp1Done  = false
-var float entryQty = na
-var float maxQtySeen = 0.0
-var int   pendBar = na
 
 if longCond and strategy.position_size == 0
-    // limit modes wait for a deeper dip instead of buying the signal close:
-    // a lower entry against the same stop shrinks the risk, pulls the target
-    // closer in points, and lifts the odds of reaching it
-    float entryPx = close
-    if entryMode == "Limit at fast EMA"
-        entryPx := math.min(emaFast, close)
-    else if entryMode == "Limit at signal bar 50%"
-        entryPx := math.min((high + low) / 2, close)
     float baseStop = switch stopBasis
         "FVG bottom" => na(fvgBottom) ? emaSlow : fvgBottom
         "Slow EMA"   => emaSlow
         => math.min(na(fvgBottom) ? emaSlow : fvgBottom, emaSlow)
     stopPrice = baseStop - stopBufTicks * syminfo.mintick
-    if useAtrFloor
-        stopPrice := math.min(stopPrice, entryPx - atrFloorMult * atr14)
-    riskPts = entryPx - stopPrice
-    // single-target mode: optionally cap the target at the recent swing high
-    // (targets just under structure get hit far more often than fixed R targets
-    // placed beyond it); skip the trade if the capped reward:risk is too small
-    float tpSingle = entryPx + rMult * riskPts
-    if useSwingCap and not scaleOut
-        tpSingle := math.min(tpSingle, swingHigh)
-    rrOk = scaleOut or not useSwingCap or tpSingle - entryPx >= minRR * riskPts
-    if riskPts > 0 and rrOk
-        trStop  := stopPrice
-        trTp1   := entryPx + tp1R * riskPts
-        trTp    := scaleOut ? entryPx + tp2R * riskPts : tpSingle
-        beDone  := false
-        tp1Done := false
-        tradesToday  += 1
-        lastEntryBar := bar_index
-        if entryMode == "Market"
-            strategy.entry("Long", strategy.long)
-        else
-            strategy.entry("Long", strategy.long, limit = entryPx)
-            pendBar := bar_index
-        if scaleOut
-            strategy.exit("TP1", from_entry = "Long", qty_percent = tp1Pct, stop = trStop, limit = trTp1)
-            strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
-        else
-            strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
-
-// cancel a stale unfilled limit order (filled, timed out, or cloud died)
-if not na(pendBar)
-    if strategy.position_size > 0
-        pendBar := na
-    else if bar_index - pendBar >= limitTtl or not bullCloud
-        strategy.cancel("Long")
-        pendBar := na
-
-// track the filled entry size so a partial TP1 fill can be detected
-if strategy.position_size > 0
-    if na(entryQty)
-        entryQty := strategy.position_size
-    maxQtySeen := math.max(maxQtySeen, strategy.position_size)
-else
-    entryQty := na
-
-// scale-out: once TP1 has filled, move the runner's stop to breakeven
-if scaleOut and not tp1Done and strategy.position_size > 0 and not na(entryQty) and strategy.position_size < entryQty
-    tp1Done := true
-    if beAfterTp1
-        trStop := strategy.position_avg_price + beOffTicks * syminfo.mintick
-    strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
-
-// optional: move stop to breakeven once price has travelled beTrigger * R in our favor
-if useBE and not beDone and strategy.position_size > 0
-    avgPrice = strategy.position_avg_price
-    risk0    = avgPrice - trStop
-    if risk0 > 0 and high >= avgPrice + beTrigger * risk0
-        trStop := avgPrice + beOffTicks * syminfo.mintick
-        beDone := true
-        if scaleOut
-            if not tp1Done
-                strategy.exit("TP1", from_entry = "Long", qty_percent = tp1Pct, stop = trStop, limit = trTp1)
-            strategy.exit("TP2", from_entry = "Long", stop = trStop, limit = trTp)
-        else
-            strategy.exit("Exit", from_entry = "Long", stop = trStop, limit = trTp)
+    riskPts   = close - stopPrice
+    if riskPts > 0
+        strategy.entry("Long", strategy.long)
+        strategy.exit("Exit", from_entry = "Long", stop = stopPrice, limit = close + rMult * riskPts)
 
 if exitOnFlip and strategy.position_size > 0 and not bullCloud
     strategy.close("Long", comment = "Cloud flipped bearish")
@@ -423,45 +195,9 @@ plotshape(longCond and strategy.position_size == 0, "Buy signal", shape.triangle
 alertcondition(longCond, "Cloud tap + FVG alignment", "Bullish EMA cloud tap aligned with 5m/15m FVG on {{ticker}}")
 
 // ----------------------------------------------------------------------------
-// Live performance panel — updates instantly as you change settings
-// ----------------------------------------------------------------------------
-showStats = input.bool(true, "Show performance panel", group = "Display")
-
-var table perfT = table.new(position.bottom_right, 2, 5, border_width = 1)
-if showStats and barstate.islast
-    total  = strategy.closedtrades
-    wins   = strategy.wintrades
-    wr     = total > 0 ? 100.0 * wins / total : na
-    pf     = strategy.grossloss > 0 ? strategy.grossprofit / strategy.grossloss : na
-    avgWin  = wins > 0 ? strategy.grossprofit / wins : na
-    losses  = strategy.losstrades
-    avgLoss = losses > 0 ? strategy.grossloss / losses : na
-    hdrBg = color.new(color.gray, 60)
-    okBg  = color.new(color.green, 75)
-    badBg = color.new(color.red, 80)
-    table.cell(perfT, 0, 0, "Trades",     bgcolor = hdrBg, text_color = color.white, text_size = size.small)
-    table.cell(perfT, 1, 0, str.tostring(total), text_color = color.white, text_size = size.small,
-         bgcolor = total >= 100 ? okBg : badBg)
-    table.cell(perfT, 0, 1, "Win rate",   bgcolor = hdrBg, text_color = color.white, text_size = size.small)
-    table.cell(perfT, 1, 1, na(wr) ? "—" : str.tostring(wr, "#.#") + "%", text_color = color.white, text_size = size.small,
-         bgcolor = na(wr) ? badBg : wr >= 60 ? okBg : badBg)
-    table.cell(perfT, 0, 2, "Profit factor", bgcolor = hdrBg, text_color = color.white, text_size = size.small)
-    table.cell(perfT, 1, 2, na(pf) ? "—" : str.tostring(pf, "#.##"), text_color = color.white, text_size = size.small,
-         bgcolor = na(pf) ? badBg : pf >= 1.75 ? okBg : badBg)
-    table.cell(perfT, 0, 3, "Avg win / loss", bgcolor = hdrBg, text_color = color.white, text_size = size.small)
-    table.cell(perfT, 1, 3, (na(avgWin) ? "—" : str.tostring(avgWin, "#")) + " / " + (na(avgLoss) ? "—" : str.tostring(avgLoss, "#")),
-         text_color = color.white, text_size = size.small)
-    table.cell(perfT, 0, 4, "Net profit", bgcolor = hdrBg, text_color = color.white, text_size = size.small)
-    table.cell(perfT, 1, 4, str.tostring(strategy.netprofit, "#"), text_color = color.white, text_size = size.small,
-         bgcolor = strategy.netprofit > 0 ? okBg : badBg)
-
-// ----------------------------------------------------------------------------
 // Warn if the chart TF is too high for the 5m/15m FVG engines
 // ----------------------------------------------------------------------------
-var table warnT = table.new(position.top_right, 1, 2)
+var table warnT = table.new(position.top_right, 1, 1)
 if barstate.islast and not anyFvgTf
     table.cell(warnT, 0, 0, "Chart TF too high for 5m/15m FVGs — use a 15m chart or lower",
-         text_color = color.red, bgcolor = color.new(color.yellow, 70))
-if barstate.islast and scaleOut and maxQtySeen > 0 and maxQtySeen < 2
-    table.cell(warnT, 0, 1, "Scale-out needs order size >= 2 contracts (Properties tab)",
          text_color = color.red, bgcolor = color.new(color.yellow, 70))
