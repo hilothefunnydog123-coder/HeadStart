@@ -51,7 +51,7 @@ minGapTicks = input.int(0,  "Minimum gap size (ticks)",        minval = 0,      
 maxZones    = input.int(12, "Max active zones kept per TF",    minval = 1, maxval = 40, group = grpFvg)
 showBoxes   = input.bool(true, "Draw FVG boxes", group = grpFvg)
 firstTapOnly = input.bool(false, "Only trade the FIRST tap of each zone", group = grpFvg)
-useCloudFvg  = input.bool(false, "FVG zone must overlap the EMA cloud (true confluence)", group = grpFvg)
+useCloudFvg  = input.bool(true, "FVG zone must overlap the EMA cloud (true confluence)", group = grpFvg)
 
 grpFilt = "Entry quality filters (all optional — toggle one at a time)"
 useSlope    = input.bool(false, "Cloud slope: both EMAs must be rising", group = grpFilt)
@@ -67,14 +67,14 @@ htfTrendLen = input.int(50,     "└ 1h EMA length", minval = 1, group = grpFilt
 useVwap     = input.bool(false, "Price must be above session VWAP", group = grpFilt)
 useAdx      = input.bool(false, "ADX trend-strength filter (skip range days)", group = grpFilt)
 adxMin      = input.float(20,   "└ Min ADX(14)", minval = 5, step = 1, group = grpFilt)
-useStruct   = input.bool(false, "Fresh structure: recent break of a swing high", group = grpFilt)
+useStruct   = input.bool(true,  "Fresh structure: recent break of a swing high", group = grpFilt)
 structLen   = input.int(20,     "└ Swing high lookback (bars)", minval = 2, group = grpFilt)
 structWithin = input.int(10,    "└ Break must be within last N bars", minval = 1, group = grpFilt)
 useSweep    = input.bool(false, "Liquidity sweep: wick below a prior low, reclaimed", group = grpFilt)
 sweepLen    = input.int(10,     "└ Prior low lookback (bars)", minval = 2, group = grpFilt)
 sweepWithin = input.int(3,      "└ Sweep within last N bars", minval = 1, group = grpFilt)
 useDayOpen  = input.bool(false, "Longs only above the daily open", group = grpFilt)
-usePbReset  = input.bool(false, "One trade per pullback (re-arm above fast EMA)", group = grpFilt)
+usePbReset  = input.bool(true,  "One trade per pullback (re-arm above fast EMA)", group = grpFilt)
 pbResetBars = input.int(2,      "└ Closes above fast EMA needed to re-arm", minval = 1, group = grpFilt)
 maxStretch  = input.float(0.0,  "Max distance of close above fast EMA (ATR mult, 0 = off)", minval = 0.0, step = 0.1, group = grpFilt)
 
