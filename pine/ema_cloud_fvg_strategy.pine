@@ -63,6 +63,7 @@ useVol      = input.bool(false, "Tap bar volume above average", group = grpFilt)
 volMult     = input.float(1.2,  "└ Volume multiple of 20-bar average", minval = 0.1, step = 0.1, group = grpFilt)
 useHtfTrend = input.bool(false, "1-hour trend filter: close above 1h EMA", group = grpFilt)
 htfTrendLen = input.int(50,     "└ 1h EMA length", minval = 1, group = grpFilt)
+useVwap     = input.bool(false, "Price must be above session VWAP", group = grpFilt)
 maxStretch  = input.float(0.0,  "Max distance of close above fast EMA (ATR mult, 0 = off)", minval = 0.0, step = 0.1, group = grpFilt)
 
 grpRisk = "Risk management"
@@ -79,7 +80,11 @@ useBE        = input.bool(false, "Move stop to breakeven", group = grpRisk)
 beTrigger    = input.float(0.6,  "└ Breakeven trigger (R)", minval = 0.1, step = 0.1, group = grpRisk)
 beOffTicks   = input.int(2,      "└ Breakeven offset (ticks past entry)", minval = 0, group = grpRisk)
 maxPerDay    = input.int(0,      "Max trades per day (0 = unlimited)", minval = 0, group = grpRisk)
+maxLossDay   = input.int(0,      "Stop trading after N losses in a day (0 = off)", minval = 0, group = grpRisk)
 cooldownBars = input.int(0,      "Cooldown bars between entries (0 = off)", minval = 0, group = grpRisk)
+useSwingCap  = input.bool(false, "Cap single target at recent swing high", group = grpRisk)
+swingLen     = input.int(20,     "└ Swing high lookback (bars)", minval = 2, group = grpRisk)
+minRR        = input.float(0.5,  "└ Min reward:risk to still take the trade", minval = 0.1, step = 0.1, group = grpRisk)
 
 grpSess    = "Session filter"
 useSession = input.bool(false, "Limit entries to a session", group = grpSess)
@@ -196,22 +201,34 @@ atr14  = ta.atr(14)
 volSma = ta.sma(volume, 20)
 htfEma = request.security(syminfo.tickerid, "60", ta.ema(close, htfTrendLen)[1], lookahead = barmerge.lookahead_on)
 
+vwapVal   = ta.vwap(hlc3)
+swingHigh = ta.highest(high, swingLen)
+
 barRange  = high - low
 slopeOk   = not useSlope    or (emaFast > emaFast[slopeBars] and emaSlow > emaSlow[slopeBars])
 thickOk   = not useThick    or (emaFast - emaSlow) >= thickAtr * atr14
 candleOk  = not useCandle   or (barRange > 0 and (close - low) / barRange >= closePosPct / 100)
 volOk     = not useVol      or volume > volSma * volMult
 htfOk     = not useHtfTrend or close > htfEma
+vwapOk    = not useVwap     or close > vwapVal
 stretchOk = maxStretch == 0 or close - emaFast <= maxStretch * atr14
+
+plot(useVwap ? vwapVal : na, "Session VWAP", color = color.new(color.yellow, 30))
 
 // ----------------------------------------------------------------------------
 // Trade pacing: daily cap and cooldown between entries
 // ----------------------------------------------------------------------------
 var int tradesToday  = 0
+var int lossesToday  = 0
 var int lastEntryBar = na
 if ta.change(time("D")) != 0
     tradesToday := 0
+    lossesToday := 0
+lossDelta = ta.change(strategy.losstrades)
+if lossDelta > 0
+    lossesToday += lossDelta
 dayOk      = maxPerDay == 0 or tradesToday < maxPerDay
+lossOk     = maxLossDay == 0 or lossesToday < maxLossDay
 cooldownOk = cooldownBars == 0 or na(lastEntryBar) or bar_index - lastEntryBar > cooldownBars
 
 // ----------------------------------------------------------------------------
@@ -229,8 +246,8 @@ longCond = cloudTap
      and anyFvgTf
      and inSession
      and (not useTrendEma or close > emaTrend)
-     and slopeOk and thickOk and candleOk and volOk and htfOk and stretchOk
-     and dayOk and cooldownOk
+     and slopeOk and thickOk and candleOk and volOk and htfOk and vwapOk and stretchOk
+     and dayOk and lossOk and cooldownOk
 
 scaleOut = exitStyle == "Scale-out (2 targets)"
 
@@ -249,10 +266,17 @@ if longCond and strategy.position_size == 0
         => math.min(na(fvgBottom) ? emaSlow : fvgBottom, emaSlow)
     stopPrice = baseStop - stopBufTicks * syminfo.mintick
     riskPts   = close - stopPrice
-    if riskPts > 0
+    // single-target mode: optionally cap the target at the recent swing high
+    // (targets just under structure get hit far more often than fixed R targets
+    // placed beyond it); skip the trade if the capped reward:risk is too small
+    float tpSingle = close + rMult * riskPts
+    if useSwingCap and not scaleOut
+        tpSingle := math.min(tpSingle, swingHigh)
+    rrOk = scaleOut or not useSwingCap or tpSingle - close >= minRR * riskPts
+    if riskPts > 0 and rrOk
         trStop  := stopPrice
         trTp1   := close + tp1R * riskPts
-        trTp    := close + (scaleOut ? tp2R : rMult) * riskPts
+        trTp    := scaleOut ? close + tp2R * riskPts : tpSingle
         beDone  := false
         tp1Done := false
         tradesToday  += 1
