@@ -1,4 +1,7 @@
 import { makeId } from "./store";
+import type { GoogleAccountProfile } from "../core/googleCalendar";
+
+export type AuthMethod = "password" | "google";
 
 export interface AuthUser {
   id: string;
@@ -6,6 +9,8 @@ export interface AuthUser {
   name: string;
   createdAt: string;
   lastSignedInAt: string;
+  authMethods: AuthMethod[];
+  avatarUrl?: string;
 }
 
 export interface AuthResult {
@@ -13,7 +18,8 @@ export interface AuthResult {
 }
 
 interface StoredUser extends AuthUser {
-  password: PasswordRecord;
+  password?: PasswordRecord;
+  googleSubject?: string;
 }
 
 interface PasswordRecord {
@@ -56,6 +62,7 @@ export async function signUp(input: {
     name,
     createdAt: now,
     lastSignedInAt: now,
+    authMethods: ["password"],
     password: await hashPassword(input.password),
   };
 
@@ -71,7 +78,7 @@ export async function signIn(input: {
   const email = normalizeEmail(input.email);
   const users = loadUsers();
   const user = users.find((item) => item.email === email);
-  if (!user || !(await verifyPassword(input.password, user.password))) {
+  if (!user?.password || !(await verifyPassword(input.password, user.password))) {
     throw new Error("Email or password is incorrect.");
   }
 
@@ -80,6 +87,48 @@ export async function signIn(input: {
   saveUsers(users.map((item) => (item.id === user.id ? updatedUser : item)));
   saveSession({ userId: user.id, signedInAt: now });
   return { user: publicUser(updatedUser) };
+}
+
+export async function signInWithGoogle(
+  profile: GoogleAccountProfile,
+): Promise<AuthResult> {
+  const email = normalizeEmail(profile.email);
+  validateEmail(email);
+
+  const users = loadUsers();
+  const existing = users.find(
+    (user) => user.googleSubject === profile.sub || user.email === email,
+  );
+  const now = new Date().toISOString();
+
+  if (existing) {
+    const updatedUser: StoredUser = {
+      ...existing,
+      email,
+      name: profile.name.trim() || existing.name,
+      avatarUrl: profile.picture,
+      googleSubject: profile.sub,
+      authMethods: uniqueAuthMethods([...existing.authMethods, "google"]),
+      lastSignedInAt: now,
+    };
+    saveUsers(users.map((user) => (user.id === existing.id ? updatedUser : user)));
+    saveSession({ userId: updatedUser.id, signedInAt: now });
+    return { user: publicUser(updatedUser) };
+  }
+
+  const storedUser: StoredUser = {
+    id: `google-${profile.sub}`,
+    email,
+    name: profile.name.trim() || normalizeName(undefined, email),
+    avatarUrl: profile.picture,
+    googleSubject: profile.sub,
+    authMethods: ["google"],
+    createdAt: now,
+    lastSignedInAt: now,
+  };
+  saveUsers([...users, storedUser]);
+  saveSession({ userId: storedUser.id, signedInAt: now });
+  return { user: publicUser(storedUser) };
 }
 
 export function signOut(): void {
@@ -103,8 +152,11 @@ export function hasUsers(): boolean {
 }
 
 function publicUser(user: StoredUser): AuthUser {
-  const { password: _password, ...publicFields } = user;
-  return publicFields;
+  const { password: _password, googleSubject: _googleSubject, ...publicFields } = user;
+  return {
+    ...publicFields,
+    authMethods: normalizedAuthMethods(user),
+  };
 }
 
 function loadUsers(): StoredUser[] {
@@ -114,7 +166,10 @@ function loadUsers(): StoredUser[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Partial<StoredUser>[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isStoredUser);
+    return parsed.filter(isStoredUser).map((user) => ({
+      ...user,
+      authMethods: normalizedAuthMethods(user),
+    }));
   } catch {
     return [];
   }
@@ -152,8 +207,24 @@ function isStoredUser(value: Partial<StoredUser>): value is StoredUser {
     typeof value.name === "string" &&
     typeof value.createdAt === "string" &&
     typeof value.lastSignedInAt === "string" &&
-    isPasswordRecord(value.password)
+    (value.password === undefined || isPasswordRecord(value.password)) &&
+    (value.googleSubject === undefined || typeof value.googleSubject === "string")
   );
+}
+
+function normalizedAuthMethods(user: Partial<StoredUser>): AuthMethod[] {
+  const methods = Array.isArray(user.authMethods)
+    ? user.authMethods.filter(
+        (method): method is AuthMethod => method === "password" || method === "google",
+      )
+    : [];
+  if (user.password) methods.push("password");
+  if (user.googleSubject) methods.push("google");
+  return uniqueAuthMethods(methods);
+}
+
+function uniqueAuthMethods(methods: AuthMethod[]): AuthMethod[] {
+  return [...new Set(methods)];
 }
 
 function isPasswordRecord(value: unknown): value is PasswordRecord {

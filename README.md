@@ -80,12 +80,13 @@ implements `estimate()` and calls `registerProvider()`.
 - 📅 **Recurring, one-off & calendar-imported commitments** — picks whichever comes next.
 - 🚗🚉🚲🚶 **Per-commitment travel mode**, each with its own speed & traffic sensitivity.
 - 📍 **Home / destination** via place search, device geolocation, or advanced coordinates.
-- 🔐 **Private Google Calendar sync** via read-only OAuth; no public iCal feed required.
+- 🔐 **Private calendar sync** for Google (read-only OAuth) and Apple (server-side CalDAV); no public iCal feed required.
+- 👤 **Working accounts** with email/password or a verified Google Account profile.
 - 🔔 **Browser/PWA notifications** for wake and leave reminders when permission is granted.
 - 🟡 **Missed-departure alerts** when live location shows you're still at home after leave time.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
 - 📲 **Installable PWA** — add to home screen, works offline.
-- 💾 **Local-first** — everything persists in `localStorage`; no account, no server.
+- 💾 **Local-first data** — schedules stay in the signed-in user's browser profile.
 - 🎨 Hand-crafted UI (Fraunces + Inter, custom line icons, film grain) with automatic light/dark themes.
 
 ## Getting started
@@ -121,28 +122,24 @@ user's primary calendar. Users do not need to publish their calendar or paste an
 iCal URL.
 
 For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
-ID whose authorized JavaScript origins include your app URL. The production UI
-does not ask users to paste OAuth client IDs.
-
-Local development can paste a temporary OAuth web client ID in the connector
-card. That field is only for developer testing; real users should get the
-configured sign-in button.
+ID whose authorized JavaScript origins include your app URL. Enable the Google
+Calendar API and add the read-only Calendar scope to the consent screen. The
+same client ID powers the clean **Continue with Google** account button and the
+separate **Connect Google Calendar** permission. Developer credentials are
+never shown or requested in the product UI.
 
 ### Using Apple Calendar
 
-Apple Calendar does not provide the same web OAuth event API as Google Calendar.
-Departure's Apple card can redirect to a secure backend connector by setting
-`VITE_CALENDAR_CONNECTOR_URL`; the frontend will call
-`{connectorUrl}/apple/start?returnTo=...`. That backend should handle Apple
-CalDAV or a trusted calendar aggregation provider and return events without
-asking users to make their calendar public. Private `.ics` import remains as a
-fallback for local/offline use.
+Apple does not grant iCloud Calendar access through ordinary **Sign in with
+Apple**. Departure therefore uses a same-site Netlify Function and Apple's
+CalDAV service. The user enters their Apple Account email and an app-specific
+password; the function uses it only for that read-only sync and does not save
+it. The calendar stays private. A private `.ics` file remains available as an
+offline fallback.
 
-On return, the connector can redirect to the app with `calendarProvider=apple`
-and either `calendarEvents`, `calendarIcs`, or `calendarPayloadUrl`. Inline
-payload values should be base64url-encoded; `calendarPayloadUrl` should return
-JSON shaped like `{ "events": [...], "sourceLabel": "Apple Calendar" }` or
-`{ "ics": "BEGIN:VCALENDAR..." }`.
+The Apple connector is deployed from `netlify/functions/apple-calendar.ts` via
+`netlify.toml`. Local end-to-end testing of that function should use `netlify
+dev`; plain `vite` serves only the frontend.
 
 ### Notifications and live location
 

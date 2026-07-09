@@ -145,6 +145,9 @@ describe("app setup and commitment flow", () => {
       "aria-selected",
       "true",
     );
+    expect(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Create account" }));
     await user.type(screen.getByLabelText("Name"), "Anaya");
@@ -167,6 +170,25 @@ describe("app setup and commitment flow", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Where do you start your day?")).toBeInTheDocument();
+  });
+
+  it("keeps calendar connection setup private and user-facing", async () => {
+    await signInForTest();
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Commitments" }));
+
+    expect(screen.queryByText("Local Google OAuth client ID")).not.toBeInTheDocument();
+    expect(screen.queryByText("Secure calendar connector URL")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect Google" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Connect Apple" }));
+    expect(
+      screen.getByRole("dialog", { name: "Connect Apple Calendar" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Apple Account email")).toBeInTheDocument();
+    expect(screen.getByLabelText("App-specific password")).toBeInTheDocument();
   });
 
   it("shows a reliability checklist and creates a one-off commitment through search", async () => {

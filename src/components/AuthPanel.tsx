@@ -1,5 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { signIn, signUp, type AuthUser } from "../state/auth";
+import {
+  configuredGoogleClientId,
+  requestGoogleAccountProfile,
+} from "../core/googleCalendar";
+import {
+  signIn,
+  signInWithGoogle,
+  signUp,
+  type AuthUser,
+} from "../state/auth";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -7,6 +16,8 @@ interface Props {
 }
 
 type AuthMode = "signin" | "signup";
+
+const GOOGLE_CLIENT_ID = configuredGoogleClientId();
 
 export function AuthPanel({ onAuthenticated }: Props) {
   const [mode, setMode] = useState<AuthMode>("signin");
@@ -18,6 +29,25 @@ export function AuthPanel({ onAuthenticated }: Props) {
   const [busy, setBusy] = useState(false);
 
   const isSignup = mode === "signup";
+
+  const continueWithGoogle = async () => {
+    setError(null);
+    if (!GOOGLE_CLIENT_ID) {
+      setError("Google sign-in is still being configured for this site.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const profile = await requestGoogleAccountProfile(GOOGLE_CLIENT_ID);
+      const result = await signInWithGoogle(profile);
+      onAuthenticated(result.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in with Google.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -79,6 +109,20 @@ export function AuthPanel({ onAuthenticated }: Props) {
           >
             Create account
           </button>
+        </div>
+
+        <button
+          type="button"
+          className="social-auth-button"
+          disabled={busy}
+          onClick={() => void continueWithGoogle()}
+        >
+          <span className="google-mark" aria-hidden>G</span>
+          Continue with Google
+        </button>
+
+        <div className="auth-divider" aria-hidden>
+          <span>or use email</span>
         </div>
 
         <form className="auth-form" onSubmit={submit}>

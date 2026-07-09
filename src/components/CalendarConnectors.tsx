@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { fetchPrivateAppleCalendar } from "../core/appleCalendar";
 import { parseCalendarIcs } from "../core/calendar";
+import { Icon } from "./Icon";
 import {
-  configuredCalendarConnectorUrl,
   configuredGoogleClientId,
   importGoogleCalendarCommitments,
   loadGoogleIdentityScript,
@@ -48,15 +49,14 @@ const PROVIDERS: {
   },
   {
     id: "apple",
-    name: "Apple Calendar file",
+    name: "Apple Calendar",
     mark: "A",
     description:
-      "Apple Calendar does not offer Google-style web calendar sign-in here. Import a private .ics file, or use a future CalDAV/backend connector.",
+      "Connect your private iCloud calendar with read-only access. Nothing needs to be published.",
   },
 ];
 
 const ENV_GOOGLE_CLIENT_ID = configuredGoogleClientId();
-const ENV_CONNECTOR_URL = configuredCalendarConnectorUrl();
 
 export function CalendarConnectors({
   connections,
@@ -66,19 +66,29 @@ export function CalendarConnectors({
   onError,
 }: Props) {
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-  const [localGoogleClientId, setLocalGoogleClientId] = useState("");
-  const [connectorUrl, setConnectorUrl] = useState(ENV_CONNECTOR_URL);
+  const [appleDialogOpen, setAppleDialogOpen] = useState(false);
+  const [appleEmail, setAppleEmail] = useState("");
+  const [applePassword, setApplePassword] = useState("");
+  const [appleError, setAppleError] = useState<string | null>(null);
   const [busyProvider, setBusyProvider] = useState<CalendarProviderId | null>(null);
+  const appleDialog = useRef<HTMLDialogElement | null>(null);
   const fileInputs = useRef<Record<CalendarProviderId, HTMLInputElement | null>>({
     google: null,
     apple: null,
   });
 
   useEffect(() => {
-    if (ENV_GOOGLE_CLIENT_ID || localGoogleClientId) {
+    if (ENV_GOOGLE_CLIENT_ID) {
       void loadGoogleIdentityScript().catch(() => undefined);
     }
-  }, [localGoogleClientId]);
+  }, []);
+
+  useEffect(() => {
+    const dialog = appleDialog.current;
+    if (!dialog) return;
+    if (appleDialogOpen && !dialog.open) dialog.showModal();
+    if (!appleDialogOpen && dialog.open) dialog.close();
+  }, [appleDialogOpen]);
 
   const importText = (
     provider: CalendarProviderId,
@@ -92,12 +102,18 @@ export function CalendarConnectors({
     onImport(provider, imported, metadata);
   };
 
+  const closeAppleDialog = () => {
+    setAppleDialogOpen(false);
+    setApplePassword("");
+    setAppleError(null);
+  };
+
   const importFromGoogle = async () => {
-    const clientId = (ENV_GOOGLE_CLIENT_ID || localGoogleClientId).trim();
+    const clientId = ENV_GOOGLE_CLIENT_ID.trim();
     if (!clientId) {
       onError(
         "google",
-        "Add a Google OAuth web client ID for local testing, or set VITE_GOOGLE_CLIENT_ID in production.",
+        "Google sign-in is still being configured for this site.",
       );
       return;
     }
@@ -124,19 +140,26 @@ export function CalendarConnectors({
     }
   };
 
-  const connectWithCalendarConnector = (provider: CalendarProviderId) => {
-    const trimmed = connectorUrl.trim().replace(/\/$/, "");
-    if (!trimmed) {
-      onError(
-        provider,
-        provider === "apple"
-          ? "Apple Calendar sign-in needs a secure calendar connector backend. Import .ics for now, or set VITE_CALENDAR_CONNECTOR_URL."
-          : "Set VITE_CALENDAR_CONNECTOR_URL to use a backend calendar connector.",
-      );
-      return;
+  const importFromApple = async () => {
+    setAppleError(null);
+    setBusyProvider("apple");
+    try {
+      const result = await fetchPrivateAppleCalendar({
+        email: appleEmail,
+        appSpecificPassword: applePassword,
+      });
+      importText("apple", result.ics, {
+        sourceLabel: result.sourceLabel,
+        authMode: "apple-connector",
+      });
+      closeAppleDialog();
+    } catch (error) {
+      const message = errorMessage(error, "Couldn't connect Apple Calendar.");
+      setAppleError(message);
+      onError("apple", message);
+    } finally {
+      setBusyProvider(null);
     }
-    const returnTo = encodeURIComponent(window.location.href);
-    window.location.href = `${trimmed}/${provider}/start?returnTo=${returnTo}`;
   };
 
   const importFromFile = async (provider: CalendarProviderId, file: File | undefined) => {
@@ -180,7 +203,6 @@ export function CalendarConnectors({
           const connection = connectionFor(connections, provider.id);
           const busy = busyProvider === provider.id;
           const isGoogle = provider.id === "google";
-          const googleReady = Boolean(ENV_GOOGLE_CLIENT_ID || localGoogleClientId.trim());
           const isApple = provider.id === "apple";
 
           return (
@@ -221,14 +243,19 @@ export function CalendarConnectors({
                     type="button"
                     className="primary-button"
                     disabled={busy}
-                    onClick={() => connectWithCalendarConnector("apple")}
+                    onClick={() => {
+                      setAppleError(null);
+                      setAppleDialogOpen(true);
+                    }}
                   >
-                    Connect Apple
+                    {connection.authMode === "apple-connector"
+                      ? "Reconnect Apple"
+                      : "Connect Apple"}
                   </button>
                 )}
                 <button
                   type="button"
-                  className={isGoogle ? "secondary-button" : "primary-button"}
+                  className="secondary-button"
                   disabled={busy}
                   onClick={() => fileInputs.current[provider.id]?.click()}
                 >
@@ -266,41 +293,6 @@ export function CalendarConnectors({
                   {new Date(connection.lastSyncedAt).toLocaleString()}
                 </p>
               )}
-              {isGoogle && !googleReady && (
-                <div className="connector-setup">
-                  <label className="field">
-                    <span>Local Google OAuth client ID</span>
-                    <input
-                      type="text"
-                      value={localGoogleClientId}
-                      placeholder="Only needed for local testing"
-                      onChange={(event) => setLocalGoogleClientId(event.target.value)}
-                    />
-                  </label>
-                  <p className="connector-meta">
-                    Production builds should set VITE_GOOGLE_CLIENT_ID so users
-                    can connect without pasting setup values.
-                  </p>
-                </div>
-              )}
-              {isApple && !connectorUrl.trim() && (
-                <div className="connector-setup">
-                  <label className="field">
-                    <span>Secure calendar connector URL</span>
-                    <input
-                      type="url"
-                      value={connectorUrl}
-                      placeholder="https://your-backend.example/calendar"
-                      onChange={(event) => setConnectorUrl(event.target.value)}
-                    />
-                  </label>
-                  <p className="connector-meta">
-                    Apple does not expose Google-style web calendar OAuth to
-                    static frontends. Use a secure backend connector, or import a
-                    private .ics file.
-                  </p>
-                </div>
-              )}
               {connection.error && (
                 <p className="field-error connector-error">{connection.error}</p>
               )}
@@ -308,6 +300,87 @@ export function CalendarConnectors({
           );
         })}
       </div>
+
+      <dialog
+        ref={appleDialog}
+        className="calendar-dialog"
+        aria-labelledby="apple-calendar-title"
+        onCancel={closeAppleDialog}
+        onClose={closeAppleDialog}
+      >
+        <form
+          className="calendar-dialog-card"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void importFromApple();
+          }}
+        >
+          <div className="dialog-heading">
+            <div>
+              <h3 id="apple-calendar-title">Connect Apple Calendar</h3>
+              <p>Private, read-only access through iCloud.</p>
+            </div>
+            <button
+              type="button"
+              className="dialog-close"
+              aria-label="Close Apple Calendar connection"
+              onClick={closeAppleDialog}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+
+          <label className="field">
+            <span>Apple Account email</span>
+            <input
+              type="email"
+              autoComplete="username"
+              value={appleEmail}
+              onChange={(event) => setAppleEmail(event.target.value)}
+              placeholder="you@icloud.com"
+              required
+            />
+          </label>
+          <label className="field">
+            <span>App-specific password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={applePassword}
+              onChange={(event) => setApplePassword(event.target.value)}
+              placeholder="xxxx-xxxx-xxxx-xxxx"
+              required
+              minLength={8}
+            />
+          </label>
+
+          <p className="calendar-privacy-note">
+            Sent securely for this sync and never saved by Departure. Generate a
+            password in{" "}
+            <a href="https://account.apple.com" target="_blank" rel="noreferrer">
+              Apple Account
+            </a>
+            .
+          </p>
+          {appleError && (
+            <p className="auth-error" role="alert">
+              {appleError}
+            </p>
+          )}
+          <div className="dialog-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={closeAppleDialog}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="primary-button" disabled={busyProvider === "apple"}>
+              {busyProvider === "apple" ? "Connecting..." : "Connect calendar"}
+            </button>
+          </div>
+        </form>
+      </dialog>
     </section>
   );
 }

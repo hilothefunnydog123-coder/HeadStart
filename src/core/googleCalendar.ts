@@ -9,7 +9,19 @@ const GOOGLE_CALENDAR_EVENTS_URL =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 export const GOOGLE_CALENDAR_SCOPE =
   "https://www.googleapis.com/auth/calendar.events.readonly";
+export const GOOGLE_ACCOUNT_SCOPES = "openid email profile";
 const GOOGLE_IMPORT_LIMIT = 50;
+
+export interface GoogleAccountProfile {
+  sub: string;
+  email: string;
+  name: string;
+  picture?: string;
+}
+
+interface GoogleUserInfo extends Partial<GoogleAccountProfile> {
+  email_verified?: boolean;
+}
 
 interface GoogleTokenResponse {
   access_token?: string;
@@ -19,7 +31,7 @@ interface GoogleTokenResponse {
 }
 
 interface GoogleTokenClient {
-  requestAccessToken: () => void;
+  requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
 }
 
 interface GoogleIdentityApi {
@@ -52,13 +64,6 @@ export function configuredGoogleClientId(): string {
     env?: Record<string, string | undefined>;
   };
   return meta.env?.VITE_GOOGLE_CLIENT_ID?.trim() ?? "";
-}
-
-export function configuredCalendarConnectorUrl(): string {
-  const meta = import.meta as ImportMeta & {
-    env?: Record<string, string | undefined>;
-  };
-  return meta.env?.VITE_CALENDAR_CONNECTOR_URL?.trim() ?? "";
 }
 
 export function loadGoogleIdentityScript(): Promise<void> {
@@ -94,9 +99,43 @@ export function loadGoogleIdentityScript(): Promise<void> {
 export async function requestGoogleCalendarAccessToken(
   clientId: string,
 ): Promise<string> {
+  return requestGoogleAccessToken(clientId, GOOGLE_CALENDAR_SCOPE);
+}
+
+export async function requestGoogleAccountProfile(
+  clientId: string,
+): Promise<GoogleAccountProfile> {
+  const accessToken = await requestGoogleAccessToken(
+    clientId,
+    GOOGLE_ACCOUNT_SCOPES,
+  );
+  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    throw new Error("Google could not verify this account.");
+  }
+
+  const profile = (await response.json()) as GoogleUserInfo;
+  if (!profile.sub || !profile.email || profile.email_verified === false) {
+    throw new Error("Google did not return an email address for this account.");
+  }
+
+  return {
+    sub: profile.sub,
+    email: profile.email,
+    name: profile.name?.trim() || profile.email.split("@")[0] || "Departure user",
+    picture: profile.picture,
+  };
+}
+
+async function requestGoogleAccessToken(
+  clientId: string,
+  scope: string,
+): Promise<string> {
   const trimmedClientId = clientId.trim();
   if (!trimmedClientId) {
-    throw new Error("Google sign-in is not configured yet.");
+    throw new Error("Google sign-in is still being configured for this site.");
   }
 
   await loadGoogleIdentityScript();
@@ -106,7 +145,7 @@ export async function requestGoogleCalendarAccessToken(
   return new Promise((resolve, reject) => {
     const client = oauth2.initTokenClient({
       client_id: trimmedClientId,
-      scope: GOOGLE_CALENDAR_SCOPE,
+      scope,
       callback: (response) => {
         if (response.error) {
           reject(new Error(response.error_description || response.error));
@@ -119,11 +158,14 @@ export async function requestGoogleCalendarAccessToken(
         }
 
         const granted =
-          oauth2.hasGrantedAllScopes?.(response, GOOGLE_CALENDAR_SCOPE) ??
-          response.scope?.split(" ").includes(GOOGLE_CALENDAR_SCOPE) ??
-          true;
+          oauth2.hasGrantedAllScopes?.(response, ...scope.split(" ")) ??
+          (response.scope
+            ? scope
+                .split(" ")
+                .every((requested) => response.scope?.split(" ").includes(requested))
+            : true);
         if (!granted) {
-          reject(new Error("Calendar read access was not granted."));
+          reject(new Error("The requested Google access was not granted."));
           return;
         }
 
@@ -131,7 +173,7 @@ export async function requestGoogleCalendarAccessToken(
       },
     });
 
-    client.requestAccessToken();
+    client.requestAccessToken({ prompt: "select_account" });
   });
 }
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   getCurrentUser,
   signIn,
+  signInWithGoogle,
   signOut,
   signUp,
 } from "../src/state/auth";
@@ -20,6 +21,7 @@ describe("auth storage", () => {
 
     expect(created.user.email).toBe("morning@example.com");
     expect(created.user.name).toBe("Morning Person");
+    expect(created.user.authMethods).toEqual(["password"]);
     expect(getCurrentUser()?.id).toBe(created.user.id);
 
     signOut();
@@ -32,6 +34,47 @@ describe("auth storage", () => {
 
     expect(signedIn.user.id).toBe(created.user.id);
     expect(getCurrentUser()?.id).toBe(created.user.id);
+  });
+
+  it("creates and reuses an account from a verified Google profile", async () => {
+    const created = await signInWithGoogle({
+      sub: "google-subject-123",
+      email: "STUDENT@example.com",
+      name: "Student Name",
+      picture: "https://example.com/avatar.png",
+    });
+
+    expect(created.user.id).toBe("google-google-subject-123");
+    expect(created.user.email).toBe("student@example.com");
+    expect(created.user.authMethods).toEqual(["google"]);
+    expect(getCurrentUser()?.id).toBe(created.user.id);
+
+    signOut();
+    const signedInAgain = await signInWithGoogle({
+      sub: "google-subject-123",
+      email: "student@example.com",
+      name: "Updated Name",
+    });
+
+    expect(signedInAgain.user.id).toBe(created.user.id);
+    expect(signedInAgain.user.name).toBe("Updated Name");
+  });
+
+  it("links Google to an existing verified-email account", async () => {
+    const passwordAccount = await signUp({
+      email: "linked@example.com",
+      password: "wake-up-now",
+    });
+    signOut();
+
+    const linked = await signInWithGoogle({
+      sub: "linked-google-subject",
+      email: "linked@example.com",
+      name: "Linked Person",
+    });
+
+    expect(linked.user.id).toBe(passwordAccount.user.id);
+    expect(linked.user.authMethods).toEqual(["password", "google"]);
   });
 
   it("rejects duplicate accounts and wrong passwords", async () => {
