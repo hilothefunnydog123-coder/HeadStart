@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlarmCard } from "./components/AlarmCard";
 import { CalendarConnectors } from "./components/CalendarConnectors";
 import { CommitmentForm } from "./components/CommitmentForm";
+import { AuthPanel } from "./components/AuthPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SkyScene } from "./components/SkyScene";
 import { DemoBar } from "./components/DemoBar";
@@ -30,7 +31,17 @@ import { useAlarmSound } from "./hooks/useAlarmSound";
 import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
 import { useAlarmNotifications } from "./hooks/useAlarmNotifications";
 import { useBriefing } from "./hooks/useBriefing";
-import { loadState, saveState, type AppState } from "./state/store";
+import {
+  hasSavedState,
+  loadState,
+  saveState,
+  type AppState,
+} from "./state/store";
+import {
+  getCurrentUser,
+  signOut,
+  type AuthUser,
+} from "./state/auth";
 import { Icon } from "./components/Icon";
 import {
   dismissPlaceSuggestion,
@@ -49,13 +60,38 @@ const CALENDAR_FALLBACK_DESTINATION: Place = {
 };
 
 export default function App() {
-  const [state, setState] = useState<AppState>(() => loadState());
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => getCurrentUser());
+
+  if (!authUser) {
+    return <AuthPanel onAuthenticated={setAuthUser} />;
+  }
+
+  return (
+    <DepartureApp
+      key={authUser.id}
+      authUser={authUser}
+      onSignOut={() => {
+        signOut();
+        setAuthUser(null);
+      }}
+    />
+  );
+}
+
+function DepartureApp({
+  authUser,
+  onSignOut,
+}: {
+  authUser: AuthUser;
+  onSignOut: () => void;
+}) {
+  const [state, setState] = useState<AppState>(() => loadStateForUser(authUser.id));
   const [tab, setTab] = useState<Tab>("alarm");
   const { now, control } = useClock();
 
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    saveState(state, authUser.id);
+  }, [state, authUser.id]);
 
   const planResult = usePlan(state.commitments, state.settings, now);
 
@@ -275,13 +311,27 @@ export default function App() {
       <SkyScene now={now} />
       <ReplanToast message={replan} />
       <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            <Icon name="alarm" size={22} strokeWidth={1.8} />
-          </span>
-          <div>
-            <h1 className="brand-title">Departure</h1>
-            <p className="brand-tag">Wake up exactly when you need to.</p>
+        <div className="header-top">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden>
+              <Icon name="alarm" size={22} strokeWidth={1.8} />
+            </span>
+            <div>
+              <h1 className="brand-title">Departure</h1>
+              <p className="brand-tag">Wake up exactly when you need to.</p>
+            </div>
+          </div>
+          <div className="account-actions">
+            <span className="account-chip" title={authUser.email}>
+              {authUser.name}
+            </span>
+            <button
+              type="button"
+              className="secondary-button sign-out-button"
+              onClick={onSignOut}
+            >
+              Sign out
+            </button>
           </div>
         </div>
         <nav className="tabs" aria-label="Sections" role="tablist">
@@ -417,6 +467,13 @@ export default function App() {
       </footer>
     </div>
   );
+}
+
+function loadStateForUser(userId: string): AppState {
+  if (!hasSavedState(userId) && hasSavedState()) {
+    return loadState();
+  }
+  return loadState(userId);
 }
 
 function updateCalendarConnection(

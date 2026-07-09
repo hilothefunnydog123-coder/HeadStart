@@ -58,10 +58,19 @@ function isBrowser(): boolean {
   return typeof window !== "undefined" && "localStorage" in window;
 }
 
-export function loadState(): AppState {
+export function stateStorageKey(ownerId?: string): string {
+  return ownerId ? `${STORAGE_KEY}/users/${ownerId}` : STORAGE_KEY;
+}
+
+export function hasSavedState(ownerId?: string): boolean {
+  if (!isBrowser()) return false;
+  return window.localStorage.getItem(stateStorageKey(ownerId)) !== null;
+}
+
+export function loadState(ownerId?: string): AppState {
   if (!isBrowser()) return defaultState();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(stateStorageKey(ownerId));
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw) as Partial<AppState>;
     const base = defaultState();
@@ -78,10 +87,10 @@ export function loadState(): AppState {
   }
 }
 
-export function saveState(state: AppState): void {
+export function saveState(state: AppState, ownerId?: string): void {
   if (!isBrowser()) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(stateStorageKey(ownerId), JSON.stringify(state));
   } catch {
     // Storage full or unavailable (private mode) — non-fatal.
   }

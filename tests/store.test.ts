@@ -44,6 +44,44 @@ describe("state storage", () => {
     });
   });
 
+  it("keeps saved app state separate for each account", async () => {
+    vi.resetModules();
+    window.localStorage.clear();
+
+    const { defaultState, loadState, saveState, stateStorageKey } = await import(
+      "../src/state/store"
+    );
+    const base = defaultState();
+
+    saveState(
+      {
+        ...base,
+        settings: {
+          ...base.settings,
+          prepMinutes: 20,
+        },
+      },
+      "user-a",
+    );
+    saveState(
+      {
+        ...base,
+        settings: {
+          ...base.settings,
+          prepMinutes: 55,
+        },
+      },
+      "user-b",
+    );
+
+    expect(stateStorageKey("user-a")).toBe(
+      "smart-departure-alarm/v1/users/user-a",
+    );
+    expect(loadState("user-a").settings.prepMinutes).toBe(20);
+    expect(loadState("user-b").settings.prepMinutes).toBe(55);
+    expect(loadState().settings.prepMinutes).toBe(45);
+  });
+
   it("removes legacy demo Home and Morning standup from existing browsers", async () => {
     vi.resetModules();
     window.localStorage.clear();

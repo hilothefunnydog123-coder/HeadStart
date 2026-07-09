@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/core";
 import App from "../src/App";
-import { defaultState, STORAGE_KEY } from "../src/state/store";
+import { signUp, type AuthUser } from "../src/state/auth";
+import { defaultState, saveState } from "../src/state/store";
 
 function visualSignature(container: HTMLElement) {
   return {
@@ -43,11 +44,19 @@ function setViewport(width: number, height: number) {
   window.dispatchEvent(new Event("resize"));
 }
 
-function seedReadyState() {
+async function signInForTest(email = "visual@example.com"): Promise<AuthUser> {
+  const result = await signUp({
+    name: "Visual User",
+    email,
+    password: "morning-pass",
+  });
+  return result.user;
+}
+
+function seedReadyState(ownerId: string) {
   const state = defaultState();
-  window.localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
+  saveState(
+    {
       ...state,
       settings: {
         ...state.settings,
@@ -74,7 +83,8 @@ function seedReadyState() {
           enabled: true,
         },
       ],
-    }),
+    },
+    ownerId,
   );
 }
 
@@ -86,7 +96,8 @@ describe("visual regression contracts", () => {
   });
 
   it("keeps the alarm screen's key visual sections present", async () => {
-    seedReadyState();
+    const account = await signInForTest();
+    seedReadyState(account.id);
     const { container } = render(<App />);
     await screen.findByText("Morning standup");
 
@@ -117,7 +128,8 @@ describe("visual regression contracts", () => {
 
   it("keeps the mobile alarm screen's key visual sections present", async () => {
     setViewport(390, 844);
-    seedReadyState();
+    const account = await signInForTest();
+    seedReadyState(account.id);
     const { container } = render(<App />);
     await screen.findByText("Morning standup");
 
@@ -147,6 +159,7 @@ describe("visual regression contracts", () => {
   });
 
   it("keeps the settings reliability controls visible", async () => {
+    await signInForTest();
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole("tab", { name: "Settings" }));

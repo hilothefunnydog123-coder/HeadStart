@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/core";
 import App from "../src/App";
-import { defaultState, STORAGE_KEY } from "../src/state/store";
+import { signUp, type AuthUser } from "../src/state/auth";
+import { defaultState, saveState } from "../src/state/store";
 
 const notificationTitles: string[] = [];
 
@@ -77,15 +78,23 @@ function mockGeolocation() {
   return geolocation;
 }
 
-function seedReadyAlarmState() {
+async function signInForTest(email = "test@example.com"): Promise<AuthUser> {
+  const result = await signUp({
+    name: "Test User",
+    email,
+    password: "morning-pass",
+  });
+  return result.user;
+}
+
+function seedReadyAlarmState(ownerId: string) {
   const state = defaultState();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const oneOffDate = tomorrow.toISOString().slice(0, 10);
 
-  window.localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
+  saveState(
+    {
       ...state,
       settings: {
         ...state.settings,
@@ -113,7 +122,8 @@ function seedReadyAlarmState() {
           enabled: true,
         },
       ],
-    }),
+    },
+    ownerId,
   );
 }
 
@@ -127,7 +137,40 @@ describe("app setup and commitment flow", () => {
     mockGeolocation();
   });
 
+  it("creates an account, signs out, and signs back in", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Create account" }));
+    await user.type(screen.getByLabelText("Name"), "Anaya");
+    await user.type(screen.getByLabelText("Email"), "anaya@example.com");
+    await user.type(screen.getByLabelText("Password"), "morning-pass");
+    await user.type(screen.getByLabelText("Confirm password"), "morning-pass");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByText("Where do you start your day?")).toBeInTheDocument();
+    expect(screen.getByText("Anaya")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await user.type(screen.getByLabelText("Email"), "anaya@example.com");
+    await user.type(screen.getByLabelText("Password"), "morning-pass");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Where do you start your day?")).toBeInTheDocument();
+  });
+
   it("shows a reliability checklist and creates a one-off commitment through search", async () => {
+    await signInForTest();
     const user = userEvent.setup();
     render(<App />);
 
@@ -154,6 +197,7 @@ describe("app setup and commitment flow", () => {
   });
 
   it("requires explicit saved places and keeps current location out of history", async () => {
+    await signInForTest();
     const user = userEvent.setup();
     render(<App />);
 
@@ -173,6 +217,7 @@ describe("app setup and commitment flow", () => {
   });
 
   it("reuses an incomplete draft instead of piling up blank commitments", async () => {
+    await signInForTest();
     const user = userEvent.setup();
     render(<App />);
 
@@ -187,7 +232,8 @@ describe("app setup and commitment flow", () => {
   });
 
   it("updates alarm route timing when the travel mode changes", async () => {
-    seedReadyAlarmState();
+    const account = await signInForTest();
+    seedReadyAlarmState(account.id);
     const user = userEvent.setup();
     render(<App />);
 
@@ -213,6 +259,7 @@ describe("app setup and commitment flow", () => {
   });
 
   it("lets the user test notification and location checks from settings", async () => {
+    await signInForTest();
     const user = userEvent.setup();
     render(<App />);
 
