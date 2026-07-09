@@ -66,6 +66,16 @@ export type TravelMode = "drive" | "transit" | "walk" | "cycle";
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /**
+ * What the deadline actually is:
+ *  - "arrive": be somewhere by a time (class, meeting, practice).
+ *  - "catch": board something that leaves at that time whether you're there or
+ *    not (a bus, a train, a flight). The destination is the stop/station, the
+ *    travel mode is how you get to it, and you want to be standing there a few
+ *    minutes before it pulls away.
+ */
+export type CommitmentKind = "arrive" | "catch";
+
+/**
  * A commitment the user needs to arrive at. Recurs weekly on the given
  * weekdays (e.g. a 9am standup Mon–Fri), or is a one-off if `days` is empty
  * and `oneOffDate` is set.
@@ -75,8 +85,18 @@ export interface Commitment {
   title: string;
   destination: Place;
   travelMode: TravelMode;
-  /** Target arrival, minutes-from-midnight in local time (e.g. 9:00 => 540). */
+  /** Deadline semantics. Missing (older saved data) means "arrive". */
+  kind?: CommitmentKind;
+  /**
+   * Target arrival, minutes-from-midnight in local time (e.g. 9:00 => 540).
+   * For "catch" commitments this is the scheduled departure time.
+   */
   arriveByMinutes: number;
+  /**
+   * For "catch" commitments: minutes before the scheduled departure to be at
+   * the stop. Replaces the global arrival buffer for these plans.
+   */
+  boardingBufferMinutes?: number;
   /** Weekdays this commitment recurs on. Empty => one-off (see oneOffDate). */
   days: Weekday[];
   /** ISO date (YYYY-MM-DD) for a one-off commitment. Ignored when days is set. */

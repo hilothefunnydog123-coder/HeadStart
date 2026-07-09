@@ -1,3 +1,4 @@
+import { arrivalBufferMinutesFor } from "./departure";
 import type { DeparturePlan, Settings } from "./types";
 
 /**
@@ -87,7 +88,7 @@ export function computeConfidence(
   const rng = mulberry32(opts.seed ?? 1337);
 
   const meanSec = plan.estimate.durationSeconds;
-  const bufferSec = settings.arrivalBufferMinutes * 60;
+  const bufferSec = arrivalBufferMinutesFor(plan.commitment, settings) * 60;
   const cv = travelCV(plan.estimate.congestion);
 
   // Lognormal parameters matched to the desired mean and CV.
@@ -139,11 +140,16 @@ export function buildBriefing(
         ? "Traffic is moderate"
         : "Roads are clear";
 
+  const isCatch = plan.commitment.kind === "catch";
   const parts = [
     `Good morning.`,
-    `Your first commitment is ${plan.commitment.title} at ${clock(plan.arriveBy)}.`,
+    isCatch
+      ? `You're catching ${plan.commitment.title} — it leaves at ${clock(plan.arriveBy)}.`
+      : `Your first commitment is ${plan.commitment.title} at ${clock(plan.arriveBy)}.`,
     `${traffic} — plan to leave by ${clock(plan.leaveBy)}.`,
-    `You're ${pct} percent likely to arrive on time.`,
+    isCatch
+      ? `You're ${pct} percent likely to make it.`
+      : `You're ${pct} percent likely to arrive on time.`,
   ];
   if (confidence.extraMinutesForTarget > 0) {
     parts.push(

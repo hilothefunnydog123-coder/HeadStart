@@ -16,8 +16,12 @@ function visualSignature(container: HTMLElement) {
     sourceBadge: container.querySelector(".source-badge")?.textContent,
     details: Boolean(container.querySelector(".plan-details")),
     routeMap: Boolean(container.querySelector(".route-map-card")),
+    // Only the label span — the sibling .segment-eta holds an async live
+    // estimate whose text would make snapshots timing-dependent.
     travelModes: Array.from(
-      container.querySelectorAll(".travel-mode-segments .segment"),
+      container.querySelectorAll(
+        ".travel-mode-segments .segment > span:not(.segment-eta)",
+      ),
     ).map((mode) => mode.textContent?.trim()),
     tabs: Array.from(container.querySelectorAll(".tab")).map((tab) =>
       tab.textContent?.trim(),

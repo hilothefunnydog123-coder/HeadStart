@@ -2668,6 +2668,18 @@ select:focus {
   font-size: 11px;
 }
 
+/* Per-mode travel-time estimate shown inside the mode switcher. */
+.segment-eta {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.segment.on .segment-eta {
+  color: var(--accent);
+}
+
 .wake-breakdown {
   display: flex;
   flex-wrap: wrap;

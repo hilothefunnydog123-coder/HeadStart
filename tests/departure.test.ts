@@ -189,3 +189,47 @@ describe("planNextDeparture (integration)", () => {
     expect(result).toEqual({ phase: "no-commitment" });
   });
 });
+
+describe("catch-a-departure commitments", () => {
+  const arriveBy = new Date(2026, 6, 8, 8, 12, 0); // the 08:12 bus
+  const now = new Date(2026, 6, 8, 6, 0, 0);
+  const busStop: Commitment = {
+    ...commitment,
+    id: "bus",
+    title: "Bus 38R",
+    kind: "catch",
+    arriveByMinutes: 8 * 60 + 12,
+    boardingBufferMinutes: 4,
+  };
+
+  it("uses the boarding buffer instead of the global arrival buffer", () => {
+    const plan = buildPlan({ commitment: busStop, arriveBy, estimate, settings, now });
+    // 08:12 − 4m at the stop − 30m travel = 07:38 (global 10m buffer ignored)
+    expect(plan.leaveBy.getHours()).toBe(7);
+    expect(plan.leaveBy.getMinutes()).toBe(38);
+  });
+
+  it("defaults the boarding buffer when unset", () => {
+    const plan = buildPlan({
+      commitment: { ...busStop, boardingBufferMinutes: undefined },
+      arriveBy,
+      estimate,
+      settings,
+      now,
+    });
+    // 08:12 − 5m default − 30m travel = 07:37
+    expect(plan.leaveBy.getMinutes()).toBe(37);
+  });
+
+  it("leaves 'arrive' commitments on the global buffer", () => {
+    const plan = buildPlan({
+      commitment: { ...busStop, kind: "arrive" },
+      arriveBy,
+      estimate,
+      settings,
+      now,
+    });
+    // 08:12 − 10m global buffer − 30m travel = 07:32
+    expect(plan.leaveBy.getMinutes()).toBe(32);
+  });
+});

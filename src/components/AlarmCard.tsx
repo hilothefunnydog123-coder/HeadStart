@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import type { DeparturePlan, PlanPhase, TravelMode } from "../core/types";
 import type { Settings } from "../core/types";
 import type { Confidence } from "../core/confidence";
+import { arrivalBufferMinutesFor } from "../core/departure";
+import { compareTravelModes } from "../core/modeCompare";
 import { formatClock, formatDuration } from "../core/time";
 import { distanceLabel } from "../core/travelDisplay";
 import {
@@ -44,11 +47,15 @@ interface Hero {
 }
 
 function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
+  const isCatch = plan.commitment.kind === "catch";
+
   if (liveStatus.kind === "still-home") {
     return {
       eyebrow: "Still at home",
       big: "Leave now",
-      sub: `ETA ${formatClock(liveStatus.arrival)}`,
+      sub: isCatch
+        ? `it leaves at ${formatClock(plan.arriveBy)}`
+        : `ETA ${formatClock(liveStatus.arrival)}`,
       className: "phase-late",
     };
   }
@@ -62,7 +69,9 @@ function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
       return {
         eyebrow: "Wake up at",
         big: formatClock(plan.wakeBy),
-        sub: `in ${untilWake}`,
+        sub: isCatch
+          ? `to catch the ${formatClock(plan.arriveBy)}`
+          : `in ${untilWake}`,
         className: "phase-sleep",
       };
     case "wake":
@@ -84,7 +93,11 @@ function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
       return {
         eyebrow: soon ? "Time to go" : "Almost time",
         big: soon ? "Leave now" : "Leave in",
-        sub: soon ? `arrive ${formatClock(plan.arriveBy)}` : untilLeave,
+        sub: soon
+          ? isCatch
+            ? `catch it at ${formatClock(plan.arriveBy)}`
+            : `arrive ${formatClock(plan.arriveBy)}`
+          : untilLeave,
         className: "phase-leave",
       };
     }
@@ -92,7 +105,9 @@ function hero(plan: DeparturePlan, liveStatus: LiveDepartureStatus): Hero {
       return {
         eyebrow: "On your way",
         big: "Safe travels",
-        sub: `arrive ${formatClock(plan.arriveBy)}`,
+        sub: isCatch
+          ? `it departs ${formatClock(plan.arriveBy)}`
+          : `arrive ${formatClock(plan.arriveBy)}`,
         className: "phase-enroute",
       };
     default:
@@ -122,13 +137,14 @@ export function AlarmCard({
 }: Props) {
   const h = hero(plan, liveStatus);
   const { commitment } = plan;
+  const isCatch = commitment.kind === "catch";
   const active = activeChip[plan.phase];
   const prepMinutes = commitment.prepMinutesOverride ?? settings.prepMinutes;
 
   const chips: { key: "wake" | "leave" | "arrive"; label: string; at: Date }[] = [
     { key: "wake", label: "Wake", at: plan.wakeBy },
     { key: "leave", label: "Leave", at: plan.leaveBy },
-    { key: "arrive", label: "Arrive", at: plan.arriveBy },
+    { key: "arrive", label: isCatch ? "Catch" : "Arrive", at: plan.arriveBy },
   ];
 
   return (
@@ -175,7 +191,11 @@ export function AlarmCard({
         </span>
         <div className="commitment-info">
           <div className="commitment-title">{commitment.title}</div>
-          <div className="commitment-dest">{commitment.destination.label}</div>
+          <div className="commitment-dest">
+            {isCatch
+              ? `Departs ${formatClock(plan.arriveBy)} · ${commitment.destination.label}`
+              : commitment.destination.label}
+          </div>
         </div>
         {briefing.supported && (
           <button
@@ -235,6 +255,30 @@ function PlanDetails({
 }) {
   const sourceIsLive = !/simulated|offline/i.test(plan.estimate.source);
   const currentMode = plan.commitment.travelMode;
+
+  // Estimate every mode for this trip so switching is an informed choice.
+  const [modeSeconds, setModeSeconds] = useState<Map<TravelMode, number> | null>(
+    null,
+  );
+  const origin = settings.home;
+  const destination = plan.commitment.destination;
+  const leaveMinuteBucket = Math.floor(plan.leaveBy.getTime() / 60_000);
+  useEffect(() => {
+    if (!origin) return;
+    let cancelled = false;
+    compareTravelModes(origin, destination, new Date(leaveMinuteBucket * 60_000))
+      .then((estimates) => {
+        if (cancelled) return;
+        setModeSeconds(
+          new Map(estimates.map((e) => [e.mode, e.durationSeconds])),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [origin?.lat, origin?.lng, destination.lat, destination.lng, leaveMinuteBucket]);
+
   return (
     <div className="plan-details" aria-label="Wake time explanation">
       <div className="plan-source-row">
@@ -259,24 +303,41 @@ function PlanDetails({
           role="group"
           aria-label="Travel mode"
         >
-          {TRAVEL_MODE_OPTIONS.map((mode) => (
-            <button
-              key={mode.value}
-              type="button"
-              className={`segment ${currentMode === mode.value ? "on" : ""}`}
-              onClick={() => onTravelModeChange(plan.commitment.id, mode.value)}
-              aria-pressed={currentMode === mode.value}
-              aria-label={`Use ${mode.label}`}
-            >
-              <Icon name={MODE_ICON[mode.value] ?? "pin"} size={18} />
-              <span>{mode.label}</span>
-            </button>
-          ))}
+          {TRAVEL_MODE_OPTIONS.map((mode) => {
+            const seconds = modeSeconds?.get(mode.value);
+            return (
+              <button
+                key={mode.value}
+                type="button"
+                className={`segment ${currentMode === mode.value ? "on" : ""}`}
+                onClick={() => onTravelModeChange(plan.commitment.id, mode.value)}
+                aria-pressed={currentMode === mode.value}
+                aria-label={`Use ${mode.label}`}
+                title={
+                  seconds != null
+                    ? `About ${formatDuration(seconds / 60)} by ${mode.label.toLowerCase()}`
+                    : undefined
+                }
+              >
+                <Icon name={MODE_ICON[mode.value] ?? "pin"} size={18} />
+                <span>{mode.label}</span>
+                <span className="segment-eta">
+                  {seconds != null ? `~${formatDuration(seconds / 60)}` : "…"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="wake-breakdown">
-        <span>Arrive {formatClock(plan.arriveBy)}</span>
-        <span>- {formatDuration(settings.arrivalBufferMinutes)} buffer</span>
+        <span>
+          {plan.commitment.kind === "catch" ? "Departs" : "Arrive"}{" "}
+          {formatClock(plan.arriveBy)}
+        </span>
+        <span>
+          - {formatDuration(arrivalBufferMinutesFor(plan.commitment, settings))}{" "}
+          {plan.commitment.kind === "catch" ? "at the stop" : "buffer"}
+        </span>
         <span>- {formatDuration(plan.estimate.durationSeconds / 60)} travel</span>
         <span>- {formatDuration(prepMinutes)} prep</span>
         <span>- {formatDuration(settings.wakeAheadMinutes)} wake cushion</span>

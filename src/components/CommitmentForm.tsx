@@ -12,6 +12,7 @@ import {
   minutesToTimeString,
   parseTimeToMinutes,
 } from "../core/time";
+import { DEFAULT_BOARDING_BUFFER_MIN } from "../core/departure";
 import { makeId } from "../state/store";
 import { PlacePicker } from "./PlacePicker";
 import { Icon, MODE_ICON } from "./Icon";
@@ -127,6 +128,7 @@ export function CommitmentForm({
         const step = stepById[c.id] ?? "when";
         const needsDestination = isDraftDestination(c);
         const isOneOff = c.days.length === 0;
+        const isCatch = c.kind === "catch";
         return (
           <div
             key={c.id}
@@ -159,9 +161,12 @@ export function CommitmentForm({
                 <strong>{c.title || "New commitment"}</strong>
                 <span className="muted">
                   {c.enabled ? "" : "Draft · "}
+                  {isCatch ? "departs " : ""}
                   {minutesToTimeString(c.arriveByMinutes)} ·{" "}
                   {needsDestination
-                    ? "add destination"
+                    ? isCatch
+                      ? "add the stop"
+                      : "add destination"
                     : c.destination.label}
                 </span>
                 {c.source?.kind === "calendar" && (
@@ -213,18 +218,56 @@ export function CommitmentForm({
 
                 {step === "when" && (
                   <div className="step-panel">
+                    <div className="field">
+                      <span className="field-label">Kind of deadline</span>
+                      <div
+                        className="segmented compact"
+                        role="group"
+                        aria-label="Kind of deadline"
+                      >
+                        <button
+                          type="button"
+                          className={`segment ${!isCatch ? "on" : ""}`}
+                          onClick={() => update(c.id, { kind: "arrive" })}
+                          aria-pressed={!isCatch}
+                        >
+                          <Icon name="pin" size={16} />
+                          <span>Be somewhere</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`segment ${isCatch ? "on" : ""}`}
+                          onClick={() => update(c.id, { kind: "catch" })}
+                          aria-pressed={isCatch}
+                        >
+                          <Icon name="transit" size={16} />
+                          <span>Catch a bus / train</span>
+                        </button>
+                      </div>
+                      {isCatch && (
+                        <small className="muted">
+                          It leaves on its schedule, not yours — we'll get you to
+                          the stop with time to spare.
+                        </small>
+                      )}
+                    </div>
+
                     <div className="field-grid">
                       <label className="field">
                         <span>What is it?</span>
                         <input
                           type="text"
                           value={c.title}
-                          placeholder="Class, practice, meeting..."
+                          placeholder={
+                            isCatch
+                              ? "Bus 38R, the 8:12 train..."
+                              : "Class, practice, meeting..."
+                          }
                           onChange={(e) => update(c.id, { title: e.target.value })}
                         />
                       </label>
                       <label className="field">
-                        <span>Arrive by</span>
+                        <span>{isCatch ? "It departs at" : "Arrive by"}</span>
                         <input
                           type="time"
                           value={minutesToTimeString(c.arriveByMinutes)}
@@ -234,6 +277,27 @@ export function CommitmentForm({
                           }}
                         />
                       </label>
+                      {isCatch && (
+                        <label className="field">
+                          <span>At the stop early (min)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={30}
+                            value={
+                              c.boardingBufferMinutes ?? DEFAULT_BOARDING_BUFFER_MIN
+                            }
+                            onChange={(e) => {
+                              const n = Math.round(Number(e.target.value));
+                              if (Number.isFinite(n)) {
+                                update(c.id, {
+                                  boardingBufferMinutes: Math.min(30, Math.max(0, n)),
+                                });
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
                     </div>
                     <StepActions onNext={() => setStep(c.id, "where")} />
                   </div>
@@ -242,7 +306,7 @@ export function CommitmentForm({
                 {step === "where" && (
                   <div className="step-panel">
                     <PlacePicker
-                      label="Destination"
+                      label={isCatch ? "Stop or station" : "Destination"}
                       value={
                         needsDestination
                           ? null

@@ -11,8 +11,29 @@ import type {
 /** How long the alarm is considered to be "actively ringing" after wake time. */
 export const ALARM_RING_WINDOW_MIN = 15;
 
+/**
+ * Default minutes-before-departure to be at the stop for "catch" commitments
+ * (a bus/train leaves on its schedule, not yours).
+ */
+export const DEFAULT_BOARDING_BUFFER_MIN = 5;
+
 const SEC_PER_MIN = 60;
 const MS_PER_MIN = 60_000;
+
+/**
+ * The buffer between arriving and the deadline. Meetings use the user's global
+ * "arrive early" preference; catching a scheduled departure uses the
+ * per-commitment boarding buffer (be at the stop N minutes before it leaves).
+ */
+export function arrivalBufferMinutesFor(
+  commitment: Commitment,
+  settings: Settings,
+): number {
+  if (commitment.kind === "catch") {
+    return commitment.boardingBufferMinutes ?? DEFAULT_BOARDING_BUFFER_MIN;
+  }
+  return settings.arrivalBufferMinutes;
+}
 
 interface BuildPlanInput {
   commitment: Commitment;
@@ -41,7 +62,7 @@ export function buildPlan(input: BuildPlanInput): DeparturePlan {
 
   const leaveBy = new Date(
     arriveBy.getTime() -
-      settings.arrivalBufferMinutes * MS_PER_MIN -
+      arrivalBufferMinutesFor(commitment, settings) * MS_PER_MIN -
       (estimate.durationSeconds / SEC_PER_MIN) * MS_PER_MIN,
   );
 
@@ -143,7 +164,7 @@ export async function planNextDeparture(
 
   const approxLeave = new Date(
     next.arriveBy.getTime() -
-      settings.arrivalBufferMinutes * MS_PER_MIN -
+      arrivalBufferMinutesFor(next.commitment, settings) * MS_PER_MIN -
       estimate.durationSeconds * 1000,
   );
   estimate = await provider.estimate({
