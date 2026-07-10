@@ -185,7 +185,13 @@ describe("app setup and commitment flow", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    expect(screen.getByRole("tablist", { name: "Sections" })).toHaveClass(
+      "tabs-alarm",
+    );
     await user.click(await screen.findByRole("tab", { name: "Commitments" }));
+    expect(screen.getByRole("tablist", { name: "Sections" })).toHaveClass(
+      "tabs-commitments",
+    );
 
     expect(screen.queryByText("Local Google OAuth client ID")).not.toBeInTheDocument();
     expect(screen.queryByText("Secure calendar connector URL")).not.toBeInTheDocument();

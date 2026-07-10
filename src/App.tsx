@@ -356,7 +356,11 @@ function DepartureApp({
             </button>
           </div>
         </div>
-        <nav className="tabs" aria-label="Sections" role="tablist">
+        <nav
+          className={`tabs tabs-${tab}`}
+          aria-label="Sections"
+          role="tablist"
+        >
           {(["alarm", "commitments", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
