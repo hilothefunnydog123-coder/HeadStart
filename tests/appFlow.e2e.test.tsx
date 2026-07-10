@@ -165,9 +165,26 @@ describe("app setup and commitment flow", () => {
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(await screen.findByText("Where do you start your day?")).toBeInTheDocument();
-    expect(screen.getByText("Anaya")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    await user.click(
+      screen.getByRole("button", { name: "Open profile menu for Anaya" }),
+    );
+    expect(screen.getByRole("menu", { name: "Profile menu" })).toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: /Profile settings/ }));
+    expect(
+      screen.getByRole("dialog", { name: "Profile settings" }),
+    ).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), "Anaya Student");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(
+      screen.getByRole("button", { name: "Open profile menu for Anaya Student" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Open profile menu for Anaya Student" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: /Sign out/ }));
     expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -178,6 +195,65 @@ describe("app setup and commitment flow", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Where do you start your day?")).toBeInTheDocument();
+  });
+
+  it("opens the commitment editor directly and supports arrow-key section navigation", async () => {
+    const authUser = await signInForTest("quick-add@example.com");
+    const state = defaultState();
+    saveState(
+      {
+        ...state,
+        settings: {
+          ...state.settings,
+          home: {
+            id: "home",
+            label: "Home",
+            lat: 37.7599,
+            lng: -122.4148,
+          },
+        },
+      },
+      authUser.id,
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add a commitment" }),
+    );
+    expect(
+      screen.getByPlaceholderText("Class, practice, meeting..."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Commitments" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    screen.getByRole("tab", { name: "Commitments" }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("opens the calendar importer directly from the reliability checklist", async () => {
+    const authUser = await signInForTest("calendar-setup@example.com");
+    seedReadyAlarmState(authUser.id);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /Calendar source/ }),
+    );
+
+    expect(screen.getByRole("tab", { name: "Commitments" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const summary = screen.getByText("Calendar import").closest("summary");
+    expect(summary?.parentElement).toHaveAttribute("open");
+    expect(summary).toHaveFocus();
   });
 
   it("keeps calendar connection setup private and user-facing", async () => {

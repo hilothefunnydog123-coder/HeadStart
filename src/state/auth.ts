@@ -20,6 +20,7 @@ export interface AuthResult {
 interface StoredUser extends AuthUser {
   password?: PasswordRecord;
   googleSubject?: string;
+  profileNameCustomized?: boolean;
 }
 
 interface PasswordRecord {
@@ -105,7 +106,9 @@ export async function signInWithGoogle(
     const updatedUser: StoredUser = {
       ...existing,
       email,
-      name: profile.name.trim() || existing.name,
+      name: existing.profileNameCustomized
+        ? existing.name
+        : profile.name.trim() || existing.name,
       avatarUrl: profile.picture,
       googleSubject: profile.sub,
       authMethods: uniqueAuthMethods([...existing.authMethods, "google"]),
@@ -136,6 +139,34 @@ export function signOut(): void {
   window.localStorage.removeItem(AUTH_SESSION_KEY);
 }
 
+export function updateProfile(
+  userId: string,
+  input: { name: string },
+): AuthResult {
+  const session = loadSession();
+  if (!session || session.userId !== userId) {
+    throw new Error("Sign in again before changing your profile.");
+  }
+
+  const name = input.name.trim();
+  if (!name) throw new Error("Enter a display name.");
+  if (name.length > 60) {
+    throw new Error("Display name must be 60 characters or fewer.");
+  }
+
+  const users = loadUsers();
+  const existing = users.find((user) => user.id === userId);
+  if (!existing) throw new Error("That account could not be found.");
+
+  const updatedUser: StoredUser = {
+    ...existing,
+    name,
+    profileNameCustomized: true,
+  };
+  saveUsers(users.map((user) => (user.id === userId ? updatedUser : user)));
+  return { user: publicUser(updatedUser) };
+}
+
 export function getCurrentUser(): AuthUser | null {
   const session = loadSession();
   if (!session) return null;
@@ -152,7 +183,12 @@ export function hasUsers(): boolean {
 }
 
 function publicUser(user: StoredUser): AuthUser {
-  const { password: _password, googleSubject: _googleSubject, ...publicFields } = user;
+  const {
+    password: _password,
+    googleSubject: _googleSubject,
+    profileNameCustomized: _profileNameCustomized,
+    ...publicFields
+  } = user;
   return {
     ...publicFields,
     authMethods: normalizedAuthMethods(user),
@@ -208,7 +244,9 @@ function isStoredUser(value: Partial<StoredUser>): value is StoredUser {
     typeof value.createdAt === "string" &&
     typeof value.lastSignedInAt === "string" &&
     (value.password === undefined || isPasswordRecord(value.password)) &&
-    (value.googleSubject === undefined || typeof value.googleSubject === "string")
+    (value.googleSubject === undefined || typeof value.googleSubject === "string") &&
+    (value.profileNameCustomized === undefined ||
+      typeof value.profileNameCustomized === "boolean")
   );
 }
 

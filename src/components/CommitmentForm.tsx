@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CalendarProviderId,
   Commitment,
@@ -20,6 +20,7 @@ import { TRAVEL_MODE_OPTIONS } from "../core/travelModes";
 
 interface Props {
   commitments: Commitment[];
+  createRequest?: number;
   onChange: (commitments: Commitment[]) => void;
   placeSuggestions: PlaceSuggestion[];
   searchBias: Commitment["destination"] | null;
@@ -52,6 +53,7 @@ function blankCommitment(): Commitment {
 
 export function CommitmentForm({
   commitments,
+  createRequest = 0,
   onChange,
   placeSuggestions,
   searchBias,
@@ -60,6 +62,7 @@ export function CommitmentForm({
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stepById, setStepById] = useState<Record<string, CommitmentStep>>({});
+  const handledCreateRequest = useRef(0);
 
   const update = (id: string, patch: Partial<Commitment>) =>
     onChange(commitments.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -72,7 +75,7 @@ export function CommitmentForm({
     }
   };
 
-  const add = () => {
+  const add = useCallback(() => {
     const draft = commitments.find((c) => isIncompleteDraft(c));
     if (draft) {
       setExpandedId(draft.id);
@@ -83,7 +86,13 @@ export function CommitmentForm({
     onChange([...commitments, c]);
     setExpandedId(c.id);
     setStepById((steps) => ({ ...steps, [c.id]: "when" }));
-  };
+  }, [commitments, onChange]);
+
+  useEffect(() => {
+    if (createRequest <= handledCreateRequest.current) return;
+    handledCreateRequest.current = createRequest;
+    add();
+  }, [add, createRequest]);
 
   const toggleDay = (c: Commitment, day: Weekday) => {
     const has = c.days.includes(day);

@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { AlarmCard } from "./components/AlarmCard";
+import { AccountMenu } from "./components/AccountMenu";
 import { CalendarConnectors } from "./components/CalendarConnectors";
 import { CommitmentForm } from "./components/CommitmentForm";
 import { AuthPanel } from "./components/AuthPanel";
@@ -51,6 +58,7 @@ import {
 import type { PlaceUsageContext, Weekday } from "./core/types";
 
 type Tab = "alarm" | "commitments" | "settings";
+const APP_TABS: Tab[] = ["alarm", "commitments", "settings"];
 
 const CALENDAR_FALLBACK_DESTINATION: Place = {
   id: "calendar-fallback-office",
@@ -70,6 +78,7 @@ export default function App() {
     <DepartureApp
       key={authUser.id}
       authUser={authUser}
+      onUserChange={setAuthUser}
       onSignOut={() => {
         signOut();
         setAuthUser(null);
@@ -80,13 +89,18 @@ export default function App() {
 
 function DepartureApp({
   authUser,
+  onUserChange,
   onSignOut,
 }: {
   authUser: AuthUser;
+  onUserChange: (user: AuthUser) => void;
   onSignOut: () => void;
 }) {
   const [state, setState] = useState<AppState>(() => loadStateForUser(authUser.id));
   const [tab, setTab] = useState<Tab>("alarm");
+  const [newCommitmentRequest, setNewCommitmentRequest] = useState(0);
+  const [calendarImportRequest, setCalendarImportRequest] = useState(0);
+  const calendarImportRef = useRef<HTMLDetailsElement | null>(null);
   const { now, control } = useClock();
 
   const openTab = (nextTab: Tab) => {
@@ -98,6 +112,54 @@ function DepartureApp({
           ? "auto"
           : "smooth",
       });
+    });
+  };
+
+  const startNewCommitment = () => {
+    setNewCommitmentRequest((request) => request + 1);
+    openTab("commitments");
+  };
+
+  const openCalendarImport = () => {
+    setTab("commitments");
+    setCalendarImportRequest((request) => request + 1);
+  };
+
+  useEffect(() => {
+    if (tab !== "commitments" || calendarImportRequest === 0) return;
+    const details = calendarImportRef.current;
+    if (!details) return;
+    details.open = true;
+    details.querySelector<HTMLElement>("summary")?.focus();
+    window.requestAnimationFrame(() => {
+      details.scrollIntoView?.({
+        block: "start",
+        behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    });
+  }, [calendarImportRequest, tab]);
+
+  const moveTabFocus = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentTab: Tab,
+  ) => {
+    let nextIndex: number | null = null;
+    const currentIndex = APP_TABS.indexOf(currentTab);
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % APP_TABS.length;
+    if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + APP_TABS.length) % APP_TABS.length;
+    }
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = APP_TABS.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = APP_TABS[nextIndex] ?? currentTab;
+    openTab(nextTab);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`${nextTab}-tab`)?.focus();
     });
   };
 
@@ -334,26 +396,12 @@ function DepartureApp({
             </div>
           </div>
           <div className="account-actions">
-            <span className="account-chip" title={authUser.email}>
-              {authUser.avatarUrl ? (
-                <img src={authUser.avatarUrl} alt="" referrerPolicy="no-referrer" />
-              ) : (
-                <span className="account-avatar" aria-hidden>
-                  {authUser.name.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              <span className="account-chip-copy">
-                <strong>{authUser.name}</strong>
-                <small>{authUser.email}</small>
-              </span>
-            </span>
-            <button
-              type="button"
-              className="secondary-button sign-out-button"
-              onClick={onSignOut}
-            >
-              Sign out
-            </button>
+            <AccountMenu
+              user={authUser}
+              onUserChange={onUserChange}
+              onOpenSettings={() => openTab("settings")}
+              onSignOut={onSignOut}
+            />
           </div>
         </div>
         <nav
@@ -361,15 +409,17 @@ function DepartureApp({
           aria-label="Sections"
           role="tablist"
         >
-          {(["alarm", "commitments", "settings"] as Tab[]).map((t) => (
+          {APP_TABS.map((t) => (
             <button
               key={t}
               id={`${t}-tab`}
               role="tab"
               aria-selected={tab === t}
               aria-controls={`${t}-panel`}
+              tabIndex={tab === t ? 0 : -1}
               className={`tab ${tab === t ? "tab-active" : ""}`}
               onClick={() => openTab(t)}
+              onKeyDown={(event) => moveTabFocus(event, t)}
             >
               {t === "alarm" ? "Alarm" : t === "commitments" ? "Commitments" : "Settings"}
             </button>
@@ -398,6 +448,7 @@ function DepartureApp({
               <EmptyState
                 phase={planResult.phase}
                 goto={openTab}
+                onAddCommitment={startNewCommitment}
               />
             )}
             {planResult.status === "ready" && livePlan && (
@@ -426,6 +477,7 @@ function DepartureApp({
                       commitments={state.commitments}
                       calendarConnections={state.calendarConnections}
                       goto={openTab}
+                      onOpenCalendarImport={openCalendarImport}
                     />
                   </aside>
                 </div>
@@ -451,6 +503,7 @@ function DepartureApp({
             </div>
             <CommitmentForm
               commitments={state.commitments}
+              createRequest={newCommitmentRequest}
               placeSuggestions={destinationSuggestions}
               searchBias={state.settings.home}
               onPlaceSelected={(place, context) => rememberPlace(place, context)}
@@ -459,7 +512,11 @@ function DepartureApp({
                 setState((s) => ({ ...s, commitments }))
               }
             />
-            <details className="import-calendar-details">
+            <details
+              ref={calendarImportRef}
+              id="calendar-import"
+              className="import-calendar-details"
+            >
               <summary>
                 <span>Calendar import</span>
                 <small>
@@ -552,9 +609,11 @@ function updateCalendarConnection(
 function EmptyState({
   phase,
   goto,
+  onAddCommitment,
 }: {
   phase: "no-home" | "no-commitment";
   goto: (t: Tab) => void;
+  onAddCommitment: () => void;
 }) {
   if (phase === "no-home") {
     return (
@@ -579,7 +638,7 @@ function EmptyState({
       <p className="muted">
         Add something you need to arrive at and we'll wake you in time.
       </p>
-      <button className="add-button" onClick={() => goto("commitments")}>
+      <button className="add-button" onClick={onAddCommitment}>
         <Icon name="plus" size={17} />
         Add a commitment
       </button>
@@ -592,11 +651,13 @@ function SetupChecklist({
   commitments,
   calendarConnections,
   goto,
+  onOpenCalendarImport,
 }: {
   settings: AppState["settings"];
   commitments: AppState["commitments"];
   calendarConnections: AppState["calendarConnections"];
   goto: (t: Tab) => void;
+  onOpenCalendarImport: () => void;
 }) {
   const reviewedCommitments = commitments.filter(
     (commitment) => commitment.enabled && !commitment.source?.needsLocationReview,
@@ -612,7 +673,7 @@ function SetupChecklist({
       label: "Start location",
       detail: settings.home ? settings.home.label : "Set where you leave from",
       done: Boolean(settings.home),
-      tab: "settings" as Tab,
+      action: () => goto("settings"),
     },
     {
       label: "Reviewed commitment",
@@ -623,7 +684,7 @@ function SetupChecklist({
             ? "Calendar location needs review"
             : "Add your first place and time",
       done: reviewedCommitments.length > 0,
-      tab: "commitments" as Tab,
+      action: () => goto("commitments"),
     },
     {
       label: "Calendar source",
@@ -632,7 +693,7 @@ function SetupChecklist({
           ? `${connectedCalendars.length} connected`
           : "Optional, but useful for real mornings",
       done: connectedCalendars.length > 0,
-      tab: "commitments" as Tab,
+      action: onOpenCalendarImport,
     },
     {
       label: "Alarm tested",
@@ -640,7 +701,7 @@ function SetupChecklist({
         ? "Browser notifications enabled"
         : "Test sound, notification, and backup",
       done: settings.notificationsEnabled,
-      tab: "settings" as Tab,
+      action: () => goto("settings"),
     },
     {
       label: "Leave check",
@@ -648,7 +709,7 @@ function SetupChecklist({
         ? "Location verified"
         : "Optional missed-departure safety net",
       done: settings.locationTrackingEnabled,
-      tab: "settings" as Tab,
+      action: () => goto("settings"),
     },
   ];
 
@@ -682,7 +743,7 @@ function SetupChecklist({
             key={item.label}
             type="button"
             className={`setup-item ${item.done ? "done" : ""}`}
-            onClick={() => goto(item.tab)}
+            onClick={item.action}
           >
             <span className="setup-check" aria-hidden>
               {item.done ? "Done" : "Next"}

@@ -5,6 +5,7 @@ import {
   signInWithGoogle,
   signOut,
   signUp,
+  updateProfile,
 } from "../src/state/auth";
 
 describe("auth storage", () => {
@@ -75,6 +76,26 @@ describe("auth storage", () => {
 
     expect(linked.user.id).toBe(passwordAccount.user.id);
     expect(linked.user.authMethods).toEqual(["password", "google"]);
+  });
+
+  it("updates the profile name without letting Google overwrite it later", async () => {
+    const created = await signInWithGoogle({
+      sub: "custom-name-subject",
+      email: "custom@example.com",
+      name: "Google Name",
+    });
+
+    const updated = updateProfile(created.user.id, { name: "Preferred Name" });
+    expect(updated.user.name).toBe("Preferred Name");
+    expect(getCurrentUser()?.name).toBe("Preferred Name");
+
+    signOut();
+    const signedInAgain = await signInWithGoogle({
+      sub: "custom-name-subject",
+      email: "custom@example.com",
+      name: "Changed Google Name",
+    });
+    expect(signedInAgain.user.name).toBe("Preferred Name");
   });
 
   it("rejects duplicate accounts and wrong passwords", async () => {
