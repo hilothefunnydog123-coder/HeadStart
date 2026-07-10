@@ -4134,6 +4134,7 @@ button:disabled {
 }
 
 .tabs::before {
+  box-sizing: border-box;
   inset: 5px auto 5px 5px;
   width: calc((100% - 10px) / 3);
 }
@@ -4258,6 +4259,17 @@ button:disabled {
 .auth-shell {
   max-width: 480px;
   padding: max(20px, env(safe-area-inset-top)) 20px 20px;
+}
+
+.days-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.day-toggle {
+  width: 100%;
+  min-width: 0;
 }
 
 .account-menu-root {
@@ -4546,6 +4558,26 @@ button:disabled {
   .alarm-card,
   .panel-wide {
     padding: var(--space-5) var(--space-4) 18px;
+  }
+
+  .route-map-head {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .route-live-chip {
+    align-self: flex-start;
+  }
+
+  .dialog-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    gap: var(--space-2);
+  }
+
+  .dialog-actions .primary-button,
+  .dialog-actions .secondary-button {
+    width: 100%;
   }
 
   .timing-field-grid,
