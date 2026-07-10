@@ -148,8 +148,16 @@ describe("app setup and commitment flow", () => {
     expect(
       screen.getByRole("button", { name: "Continue with Google" }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByRole("tablist", { name: "Account action" })).not.toHaveClass(
+      "auth-tabs-signup",
+    );
 
     await user.click(screen.getByRole("tab", { name: "Create account" }));
+    expect(screen.getByLabelText("Name")).toBeEnabled();
+    expect(screen.getByRole("tablist", { name: "Account action" })).toHaveClass(
+      "auth-tabs-signup",
+    );
     await user.type(screen.getByLabelText("Name"), "Anaya");
     await user.type(screen.getByLabelText("Email"), "anaya@example.com");
     await user.type(screen.getByLabelText("Password"), "morning-pass");

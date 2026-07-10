@@ -84,7 +84,11 @@ export function AuthPanel({ onAuthenticated }: Props) {
           </div>
         </div>
 
-        <div className="auth-tabs" role="tablist" aria-label="Account action">
+        <div
+          className={`auth-tabs ${isSignup ? "auth-tabs-signup" : ""}`}
+          role="tablist"
+          aria-label="Account action"
+        >
           <button
             type="button"
             role="tab"
@@ -111,14 +115,16 @@ export function AuthPanel({ onAuthenticated }: Props) {
           </button>
         </div>
 
-        <div className="auth-heading">
-          <span className="page-kicker">Your morning, handled</span>
-          <h2>{isSignup ? "Create your Departure account" : "Welcome back"}</h2>
-          <p>
-            {isSignup
-              ? "Save your schedule and keep calendar access private."
-              : "Sign in to see when to wake up, get ready, and leave."}
-          </p>
+        <div className="auth-heading" aria-live="polite">
+          <div key={mode} className="auth-heading-copy">
+            <span className="page-kicker">Your morning, handled</span>
+            <h2>{isSignup ? "Create your Departure account" : "Welcome back"}</h2>
+            <p>
+              {isSignup
+                ? "Save your schedule and keep calendar access private."
+                : "Sign in to see when to wake up, get ready, and leave."}
+            </p>
+          </div>
         </div>
 
         <button
@@ -136,18 +142,25 @@ export function AuthPanel({ onAuthenticated }: Props) {
         </div>
 
         <form className="auth-form" onSubmit={submit}>
-          {isSignup && (
-            <label className="field">
-              <span>Name</span>
-              <input
-                type="text"
-                autoComplete="name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Your name"
-              />
-            </label>
-          )}
+          <div
+            className={`auth-expand-row ${isSignup ? "auth-expand-row-open" : ""}`}
+            aria-hidden={!isSignup}
+          >
+            <div>
+              <label className="field">
+                <span>Name</span>
+                <input
+                  type="text"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  required={isSignup}
+                  disabled={!isSignup}
+                />
+              </label>
+            </div>
+          </div>
 
           <label className="field">
             <span>Email</span>
@@ -174,20 +187,26 @@ export function AuthPanel({ onAuthenticated }: Props) {
             />
           </label>
 
-          {isSignup && (
-            <label className="field">
-              <span>Confirm password</span>
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Repeat password"
-                required
-                minLength={8}
-              />
-            </label>
-          )}
+          <div
+            className={`auth-expand-row ${isSignup ? "auth-expand-row-open" : ""}`}
+            aria-hidden={!isSignup}
+          >
+            <div>
+              <label className="field">
+                <span>Confirm password</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Repeat password"
+                  required={isSignup}
+                  disabled={!isSignup}
+                  minLength={8}
+                />
+              </label>
+            </div>
+          </div>
 
           {error && (
             <div className="auth-error" role="alert">

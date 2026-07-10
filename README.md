@@ -121,8 +121,9 @@ The Google connector uses Google Identity Services with the
 user's primary calendar. Users do not need to publish their calendar or paste an
 iCal URL.
 
-For a deployed build, set `VITE_GOOGLE_CLIENT_ID` to a Google OAuth web client
-ID whose authorized JavaScript origins include your app URL. Enable the Google
+The production site ships with its authorized Google OAuth web client. Other
+deployments can override it with `VITE_GOOGLE_CLIENT_ID`; that client must list
+the deployment URL as an authorized JavaScript origin. Enable the Google
 Calendar API and add the read-only Calendar scope to the consent screen. The
 same client ID powers the clean **Continue with Google** account button and the
 separate **Connect Google Calendar** permission. Developer credentials are

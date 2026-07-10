@@ -5,6 +5,8 @@ import {
 import type { Commitment, Place } from "./types";
 
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
+const DEPARTURE_GOOGLE_CLIENT_ID =
+  "580289782891-fqghiisltc8tmmcla9pi8vumalt6a2ff.apps.googleusercontent.com";
 const GOOGLE_CALENDAR_EVENTS_URL =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 export const GOOGLE_CALENDAR_SCOPE =
@@ -63,7 +65,7 @@ export function configuredGoogleClientId(): string {
   const meta = import.meta as ImportMeta & {
     env?: Record<string, string | undefined>;
   };
-  return meta.env?.VITE_GOOGLE_CLIENT_ID?.trim() ?? "";
+  return meta.env?.VITE_GOOGLE_CLIENT_ID?.trim() || DEPARTURE_GOOGLE_CLIENT_ID;
 }
 
 export function loadGoogleIdentityScript(): Promise<void> {

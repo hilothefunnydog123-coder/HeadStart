@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { requestGoogleAccountProfile } from "../src/core/googleCalendar";
+import {
+  configuredGoogleClientId,
+  requestGoogleAccountProfile,
+} from "../src/core/googleCalendar";
 
 describe("Google account authorization", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete window.google;
+  });
+
+  it("ships with the production web client configured", () => {
+    expect(configuredGoogleClientId()).toMatch(/\.apps\.googleusercontent\.com$/);
   });
 
   it("requests profile scopes and returns Google's verified account", async () => {
