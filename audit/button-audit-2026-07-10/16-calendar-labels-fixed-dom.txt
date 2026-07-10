@@ -1,0 +1,44 @@
+- banner:
+  - heading "Departure" [level=1]
+  - paragraph: Wake up exactly when you need to.
+  - button "Open profile menu for Post Fix Auditor":
+    - generic: P
+    - strong: Post Fix Auditor
+    - generic: post-fix-button-audit@example.com
+  - tablist "Sections":
+    - tab "Alarm"
+    - tab "Commitments" [selected]
+    - tab "Settings"
+- tabpanel "Commitments":
+  - generic: Schedule
+  - heading "Commitments" [level=2]
+  - paragraph: Add where you need to be. Departure handles when to wake and leave.
+  - generic: 0 active
+  - strong: Your schedule is clear
+  - paragraph: Add the first place you need to be and when you need to arrive.
+  - button "New commitment":
+    - text: New commitment
+  - generic "Calendar import Google Calendar or .ics files" [active]:
+    - generic: Calendar import
+    - generic: Google Calendar or .ics files
+  - region "Calendar connections":
+    - paragraph: Connect privately with read-only access. Departure never asks you to publish a calendar.
+    - article:
+      - generic: G
+      - strong: Google Calendar
+      - generic: Not connected
+      - paragraph: Connect privately with read-only event access. Imported events stay editable.
+      - button "Connect Google"
+      - button "Import Google Calendar .ics file": Import .ics
+      - button "Choose Google Calendar .ics file"
+    - article:
+      - generic: A
+      - strong: Apple Calendar
+      - generic: Not connected
+      - paragraph: Connect your private iCloud calendar with read-only access. Nothing needs to be published.
+      - button "Connect Apple"
+      - button "Import Apple Calendar .ics file": Import .ics
+      - button "Choose Apple Calendar .ics file"
+- contentinfo:
+  - text: Offline traffic simulation
+  - generic: 10:05:29 AM

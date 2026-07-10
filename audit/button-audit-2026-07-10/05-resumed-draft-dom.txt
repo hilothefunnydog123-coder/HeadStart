@@ -1,0 +1,52 @@
+- banner:
+  - heading "Departure" [level=1]
+  - paragraph: Wake up exactly when you need to.
+  - button "Open profile menu for Alex Reviewer":
+    - generic: A
+    - strong: Alex Reviewer
+    - generic: profile.review@example.com
+  - tablist "Sections":
+    - tab "Alarm"
+    - tab "Commitments" [selected]
+    - tab "Settings"
+- tabpanel "Commitments":
+  - generic: Schedule
+  - heading "Commitments" [level=2]
+  - paragraph: Add where you need to be. Departure handles when to wake and leave.
+  - generic: 0 active
+  - generic "Disabled":
+    - checkbox "Enable draft commitment" [disabled]
+  - button "New commitment Draft · 09:00 · add destination" [expanded]:
+    - strong: New commitment
+    - generic: Draft · 09:00 · add destination
+  - button "Delete commitment":
+  - tablist "Commitment steps":
+    - tab "1 What & when" [selected]:
+      - generic: "1"
+      - text: What & when
+    - tab "2 Where":
+      - generic: "2"
+      - text: Where
+    - tab "3 Travel & repeats":
+      - generic: "3"
+      - text: Travel & repeats
+  - generic: Kind of deadline
+  - group "Kind of deadline":
+    - button "Be somewhere" [pressed]:
+      - generic: Be somewhere
+    - button "Catch a bus / train":
+      - generic: Catch a bus / train
+  - generic: What is it?
+  - textbox "What is it?":
+    - /placeholder: Class, practice, meeting...
+  - generic: Arrive by
+  - textbox "Arrive by": 09:00
+  - button "Next"
+  - button "New commitment":
+    - text: New commitment
+  - generic "Calendar import Google Calendar or .ics files":
+    - generic: Calendar import
+    - generic: Google Calendar or .ics files
+- contentinfo:
+  - text: Offline traffic simulation
+  - generic: 9:43:35 AM

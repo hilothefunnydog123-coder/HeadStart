@@ -1,0 +1,18 @@
+- banner:
+  - heading "Departure" [level=1]
+  - paragraph: Wake up exactly when you need to.
+  - button "Open profile menu for Alex Reviewer":
+    - generic: A
+    - strong: Alex Reviewer
+    - generic: profile.review@example.com
+  - tablist "Sections":
+    - tab "Alarm" [selected]
+    - tab "Commitments"
+    - tab "Settings"
+- tabpanel "Alarm":
+  - heading "Where do you start your day?" [level=2]
+  - paragraph: Set your home location so we can measure the trip.
+  - button "Set home location"
+- contentinfo:
+  - text: Offline traffic simulation
+  - generic: 9:40:13 AM

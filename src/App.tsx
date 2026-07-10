@@ -10,7 +10,11 @@ import { AccountMenu } from "./components/AccountMenu";
 import { CalendarConnectors } from "./components/CalendarConnectors";
 import { CommitmentForm } from "./components/CommitmentForm";
 import { AuthPanel } from "./components/AuthPanel";
-import { SettingsPanel } from "./components/SettingsPanel";
+import {
+  SettingsPanel,
+  type SettingsFocusRequest,
+  type SettingsFocusTarget,
+} from "./components/SettingsPanel";
 import { SkyScene } from "./components/SkyScene";
 import { DemoBar } from "./components/DemoBar";
 import { ReplanToast, type ReplanMessage } from "./components/ReplanToast";
@@ -38,12 +42,7 @@ import { useAlarmSound } from "./hooks/useAlarmSound";
 import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
 import { useAlarmNotifications } from "./hooks/useAlarmNotifications";
 import { useBriefing } from "./hooks/useBriefing";
-import {
-  hasSavedState,
-  loadState,
-  saveState,
-  type AppState,
-} from "./state/store";
+import { loadState, saveState, type AppState } from "./state/store";
 import {
   getCurrentUser,
   signOut,
@@ -100,6 +99,9 @@ function DepartureApp({
   const [tab, setTab] = useState<Tab>("alarm");
   const [newCommitmentRequest, setNewCommitmentRequest] = useState(0);
   const [calendarImportRequest, setCalendarImportRequest] = useState(0);
+  const [settingsFocusRequest, setSettingsFocusRequest] =
+    useState<SettingsFocusRequest | null>(null);
+  const settingsFocusRequestId = useRef(0);
   const calendarImportRef = useRef<HTMLDetailsElement | null>(null);
   const { now, control } = useClock();
 
@@ -118,6 +120,17 @@ function DepartureApp({
   const startNewCommitment = () => {
     setNewCommitmentRequest((request) => request + 1);
     openTab("commitments");
+  };
+
+  const openSettings = (target?: SettingsFocusTarget) => {
+    if (target) {
+      settingsFocusRequestId.current += 1;
+      setSettingsFocusRequest({
+        id: settingsFocusRequestId.current,
+        target,
+      });
+    }
+    openTab("settings");
   };
 
   const openCalendarImport = () => {
@@ -399,7 +412,7 @@ function DepartureApp({
             <AccountMenu
               user={authUser}
               onUserChange={onUserChange}
-              onOpenSettings={() => openTab("settings")}
+              onOpenSettings={() => openSettings()}
               onSignOut={onSignOut}
             />
           </div>
@@ -447,7 +460,7 @@ function DepartureApp({
             {planResult.status === "empty" && (
               <EmptyState
                 phase={planResult.phase}
-                goto={openTab}
+                onSetHome={() => openSettings("home")}
                 onAddCommitment={startNewCommitment}
               />
             )}
@@ -460,7 +473,7 @@ function DepartureApp({
                       now={now}
                       settings={state.settings}
                       liveStatus={liveDepartureStatus}
-                      onReviewLocationConsent={() => openTab("settings")}
+                      onReviewLocationConsent={() => openSettings("location")}
                       onTravelModeChange={updateCommitmentTravelMode}
                       confidence={confidence}
                       briefing={{
@@ -477,6 +490,7 @@ function DepartureApp({
                       commitments={state.commitments}
                       calendarConnections={state.calendarConnections}
                       goto={openTab}
+                      onOpenSettings={openSettings}
                       onOpenCalendarImport={openCalendarImport}
                     />
                   </aside>
@@ -552,6 +566,7 @@ function DepartureApp({
             <SettingsPanel
               settings={state.settings}
               testPlan={livePlan}
+              focusRequest={settingsFocusRequest}
               placeHistoryCount={state.placeHistory.length}
               onChange={(settings) => setState((s) => ({ ...s, settings }))}
               onClearPlaceHistory={() =>
@@ -576,9 +591,6 @@ function DepartureApp({
 }
 
 function loadStateForUser(userId: string): AppState {
-  if (!hasSavedState(userId) && hasSavedState()) {
-    return loadState();
-  }
   return loadState(userId);
 }
 
@@ -608,11 +620,11 @@ function updateCalendarConnection(
 
 function EmptyState({
   phase,
-  goto,
+  onSetHome,
   onAddCommitment,
 }: {
   phase: "no-home" | "no-commitment";
-  goto: (t: Tab) => void;
+  onSetHome: () => void;
   onAddCommitment: () => void;
 }) {
   if (phase === "no-home") {
@@ -623,7 +635,7 @@ function EmptyState({
         </span>
         <h2>Where do you start your day?</h2>
         <p className="muted">Set your home location so we can measure the trip.</p>
-        <button className="add-button" onClick={() => goto("settings")}>
+        <button type="button" className="add-button" onClick={onSetHome}>
           Set home location
         </button>
       </div>
@@ -651,12 +663,14 @@ function SetupChecklist({
   commitments,
   calendarConnections,
   goto,
+  onOpenSettings,
   onOpenCalendarImport,
 }: {
   settings: AppState["settings"];
   commitments: AppState["commitments"];
   calendarConnections: AppState["calendarConnections"];
   goto: (t: Tab) => void;
+  onOpenSettings: (target: SettingsFocusTarget) => void;
   onOpenCalendarImport: () => void;
 }) {
   const reviewedCommitments = commitments.filter(
@@ -673,7 +687,7 @@ function SetupChecklist({
       label: "Start location",
       detail: settings.home ? settings.home.label : "Set where you leave from",
       done: Boolean(settings.home),
-      action: () => goto("settings"),
+      action: () => onOpenSettings("home"),
     },
     {
       label: "Reviewed commitment",
@@ -701,7 +715,7 @@ function SetupChecklist({
         ? "Browser notifications enabled"
         : "Test sound, notification, and backup",
       done: settings.notificationsEnabled,
-      action: () => goto("settings"),
+      action: () => onOpenSettings("alerts"),
     },
     {
       label: "Leave check",
@@ -709,7 +723,7 @@ function SetupChecklist({
         ? "Location verified"
         : "Optional missed-departure safety net",
       done: settings.locationTrackingEnabled,
-      action: () => goto("settings"),
+      action: () => onOpenSettings("location"),
     },
   ];
 

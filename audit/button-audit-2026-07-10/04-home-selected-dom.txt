@@ -1,0 +1,80 @@
+- banner:
+  - heading "Departure" [level=1]
+  - paragraph: Wake up exactly when you need to.
+  - button "Open profile menu for Alex Reviewer":
+    - generic: A
+    - strong: Alex Reviewer
+    - generic: profile.review@example.com
+  - tablist "Sections":
+    - tab "Alarm"
+    - tab "Commitments"
+    - tab "Settings" [selected]
+- tabpanel "Settings":
+  - generic: Preferences
+  - heading "Settings" [level=2]
+  - paragraph: Tune your timing, alerts, saved places, and live route checks.
+  - region "Saved places":
+    - heading "Saved places" [level=3]
+    - paragraph: Home is your starting point. Work and School are optional shortcuts you choose yourself.
+    - strong: Home
+    - generic: Los Altos City Hall, North San Antonio Road, Los Altos, California
+    - button "Change"
+    - button "Remove Home":
+    - strong: Work
+    - generic: Optional saved destination.
+    - button "Add work"
+    - strong: School
+    - generic: Optional saved destination.
+    - button "Add school"
+  - region "Morning timing":
+    - heading "Morning timing" [level=3]
+    - paragraph: Set the buffers Departure uses to work backward from arrival.
+    - generic: Get ready
+    - spinbutton "Get ready min Wake up to walking out.": "45"
+    - generic: min
+    - generic: Wake up to walking out.
+    - generic: Arrive early
+    - spinbutton "Arrive early min Safety before the event.": "10"
+    - generic: min
+    - generic: Safety before the event.
+    - generic: Wake cushion
+    - spinbutton "Wake cushion min Extra time before the strict wake time.": "5"
+    - generic: min
+    - generic: Extra time before the strict wake time.
+  - region "Route estimates":
+    - heading "Route estimates" [level=3]
+    - paragraph: Choose between the private offline estimate and live Google traffic.
+    - generic: Traffic source
+    - combobox "Traffic source":
+      - option "Simulated traffic (offline)" [selected]
+      - option "Google Routes (live)"
+  - region "Alerts":
+    - heading "Alerts" [level=3]
+    - checkbox "Sound in browser" [checked]
+    - generic: Sound in browser
+    - strong: Browser notifications
+    - paragraph: Wake and leave alerts can appear outside the page when your browser supports it.
+    - generic: "Permission: not requested"
+    - button "Enable notifications"
+    - button "Test" [disabled]
+    - strong: Test my alarm
+    - paragraph: Verify sound, browser notification, and calendar-reminder backup before relying on Departure for an important morning.
+    - button "Test sound"
+    - button "Test notification"
+    - button "Download backup" [disabled]
+  - region "Missed-departure check":
+    - heading "Missed-departure check" [level=3]
+    - paragraph: Departure verifies browser location when you turn this on, then checks again during the window after your leave time and before your arrival time.
+    - paragraph: The app stores only this on/off preference in local storage. Current coordinates stay in memory for the active page session.
+    - checkbox "I understand the browser may ask for location access during the leave window, and Departure does not save my coordinates."
+    - generic: I understand the browser may ask for location access during the leave window, and Departure does not save my coordinates.
+    - button "Enable live checks" [disabled]
+    - button "Test location check"
+  - region "Place suggestions":
+    - heading "Place suggestions" [level=3]
+    - paragraph: Suggestions are built only from places you select in this browser. Clear them whenever you want a fresh start.
+    - generic: No learned places yet
+    - button "Forget suggestions" [disabled]
+- contentinfo:
+  - text: Offline traffic simulation
+  - generic: 9:41:53 AM

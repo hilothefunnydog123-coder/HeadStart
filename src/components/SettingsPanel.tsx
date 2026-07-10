@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Place, Settings } from "../core/types";
 import {
   notificationPermission,
@@ -20,9 +20,17 @@ import type { DeparturePlan } from "../core/types";
 interface Props {
   settings: Settings;
   testPlan: DeparturePlan | null;
+  focusRequest?: SettingsFocusRequest | null;
   onChange: (settings: Settings) => void;
   placeHistoryCount: number;
   onClearPlaceHistory: () => void;
+}
+
+export type SettingsFocusTarget = "home" | "alerts" | "location";
+
+export interface SettingsFocusRequest {
+  id: number;
+  target: SettingsFocusTarget;
 }
 
 type SavedPlaceKind = "home" | "work" | "school";
@@ -52,6 +60,7 @@ const SAVED_PLACES: Array<{
 export function SettingsPanel({
   settings,
   testPlan,
+  focusRequest = null,
   onChange,
   placeHistoryCount,
   onClearPlaceHistory,
@@ -65,10 +74,42 @@ export function SettingsPanel({
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [checkingLocation, setCheckingLocation] = useState(false);
   const [editingPlace, setEditingPlace] = useState<SavedPlaceKind | null>(null);
+  const savedPlacesRef = useRef<HTMLElement | null>(null);
+  const alertsRef = useRef<HTMLElement | null>(null);
+  const locationRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setPermission(notificationPermission());
   }, []);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (focusRequest.target === "home") setEditingPlace("home");
+
+    let nestedFrame = 0;
+    const frame = window.requestAnimationFrame(() => {
+      nestedFrame = window.requestAnimationFrame(() => {
+        const section =
+          focusRequest.target === "home"
+            ? savedPlacesRef.current
+            : focusRequest.target === "alerts"
+              ? alertsRef.current
+              : locationRef.current;
+        if (!section) return;
+        section.scrollIntoView?.({ block: "start", behavior: "smooth" });
+        if (focusRequest.target === "home") {
+          section.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+        } else {
+          section.focus({ preventScroll: true });
+        }
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (nestedFrame) window.cancelAnimationFrame(nestedFrame);
+    };
+  }, [focusRequest?.id, focusRequest?.target]);
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
@@ -95,6 +136,7 @@ export function SettingsPanel({
   return (
     <div className="settings">
       <section
+        ref={savedPlacesRef}
         className="settings-card saved-places-card settings-saved-card"
         aria-labelledby="saved-places-heading"
       >
@@ -256,6 +298,8 @@ export function SettingsPanel({
       </section>
 
       <section
+        ref={alertsRef}
+        tabIndex={-1}
         className="settings-card settings-alerts-card"
         aria-labelledby="alerts-heading"
       >
@@ -360,6 +404,8 @@ export function SettingsPanel({
       </section>
 
       <section
+        ref={locationRef}
+        tabIndex={-1}
         className="settings-card settings-location-card"
         aria-labelledby="location-heading"
       >

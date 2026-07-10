@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/core";
 import App from "../src/App";
 import { signUp, type AuthUser } from "../src/state/auth";
-import { defaultState, saveState } from "../src/state/store";
+import { defaultState, saveState, STORAGE_KEY } from "../src/state/store";
 
 const notificationTitles: string[] = [];
 
@@ -237,6 +237,70 @@ describe("app setup and commitment flow", () => {
     );
   });
 
+  it("opens the Home editor directly from the empty Alarm action", async () => {
+    await signInForTest("set-home-directly@example.com");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Set home location" }),
+    );
+
+    expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const homeEditor = screen.getByRole("group", { name: "Set Home" });
+    expect(homeEditor).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(homeEditor).getByRole("combobox")).toHaveFocus(),
+    );
+  });
+
+  it("keeps a newly created account isolated from unscoped legacy state", async () => {
+    const legacy = defaultState();
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...legacy,
+        settings: {
+          ...legacy.settings,
+          home: {
+            id: "legacy-home",
+            label: "Someone else's dorm",
+            lat: 37.7599,
+            lng: -122.4148,
+          },
+        },
+        commitments: [
+          {
+            id: "legacy-class",
+            title: "Someone else's class",
+            destination: {
+              id: "legacy-campus",
+              label: "Legacy campus",
+              lat: 37.7946,
+              lng: -122.3999,
+            },
+            travelMode: "drive",
+            arriveByMinutes: 9 * 60,
+            days: [1, 2, 3, 4, 5],
+            enabled: true,
+          },
+        ],
+      }),
+    );
+
+    await signInForTest("isolated-new-account@example.com");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Where do you start your day?" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Someone else's class")).not.toBeInTheDocument();
+    expect(screen.queryByText("Someone else's dorm")).not.toBeInTheDocument();
+  });
+
   it("opens the calendar importer directly from the reliability checklist", async () => {
     const authUser = await signInForTest("calendar-setup@example.com");
     seedReadyAlarmState(authUser.id);
@@ -384,5 +448,45 @@ describe("app setup and commitment flow", () => {
     expect(
       await screen.findByText("Location check worked within about 31 m accuracy."),
     ).toBeInTheDocument();
+  });
+
+  it("takes Alarm reliability actions to the matching Settings section", async () => {
+    const account = await signInForTest("settings-targets@example.com");
+    seedReadyAlarmState(account.id);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Start location/ }));
+    expect(screen.getByRole("group", { name: "Set Home" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.click(screen.getByRole("tab", { name: "Alarm" }));
+    await user.click(
+      await screen.findByRole("button", { name: /Reviewed commitment/ }),
+    );
+    expect(screen.getByRole("tab", { name: "Commitments" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Alarm" }));
+    await user.click(await screen.findByRole("button", { name: "Enable live dot" }));
+    const locationSection = screen.getByRole("region", {
+      name: "Missed-departure check",
+    });
+    await waitFor(() => expect(locationSection).toHaveFocus());
+
+    await user.click(screen.getByRole("tab", { name: "Alarm" }));
+    await user.click(await screen.findByRole("button", { name: /Alarm tested/ }));
+    const alertsSection = screen.getByRole("region", { name: "Alerts" });
+    await waitFor(() => expect(alertsSection).toHaveFocus());
+
+    await user.click(screen.getByRole("tab", { name: "Alarm" }));
+    await user.click(await screen.findByRole("button", { name: /Leave check/ }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("region", { name: "Missed-departure check" }),
+      ).toHaveFocus(),
+    );
   });
 });

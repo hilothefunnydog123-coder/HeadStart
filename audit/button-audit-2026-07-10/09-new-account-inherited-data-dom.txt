@@ -1,0 +1,134 @@
+- banner:
+  - heading "Departure" [level=1]
+  - paragraph: Wake up exactly when you need to.
+  - button "Open profile menu for Button Auditor":
+    - generic: B
+    - strong: Button Auditor
+    - generic: button-audit-2026-07-10@example.com
+  - tablist "Sections":
+    - tab "Alarm" [selected]
+    - tab "Commitments"
+    - tab "Settings"
+- tabpanel "Alarm":
+  - img "Morning timeline. Wake at 12:27 PM, leave at 1:17 PM, arrive at 9:00 AM."
+  - status:
+    - paragraph: Time to go
+    - generic: Leave now
+    - paragraph: arrive 9:00 AM
+  - generic: Wake
+  - generic: 12:27 PM
+  - generic: Leave
+  - generic: 1:17 PM
+  - generic: Arrive
+  - generic: 9:00 AM
+  - strong: Live missed-departure checks are off
+  - generic: Enable browser location checks during your leave window to update ETA if you are still at home.
+  - button "Review"
+  - region "Live route map":
+    - generic: Route map
+    - strong: Walking route · Dorm to Main Library, Lloyd Street North, Chorlton-on-Medlock, Manchester
+    - generic: Projected
+    - iframe:
+      - region "Map"
+      - button "Zoom In"
+      - button "Zoom Out"
+      - link "Report a problem":
+        - /url: /fixthemap?lat=46.63051&lon=-62.07786&zoom=0
+      - text: "| ©"
+      - link "OpenStreetMap contributors":
+        - /url: /copyright
+      - text: ♥️
+      - link "Make a Donation":
+        - /url: https://supporting.openstreetmap.org
+      - text: .
+      - link "Website and API terms":
+        - /url: https://wiki.osmfoundation.org/wiki/Terms_of_Use
+    - 'generic "Start: Dorm"':
+    - 'generic "Destination: Main Library, Lloyd Street North, Chorlton-on-Medlock, Manchester"':
+    - generic "Projected location"
+    - strong: Walk · 97% of route
+    - generic: Enable live location checks to follow your dot.
+    - strong: 1:17 PM leave
+    - generic: 2515h 33m · 11729.1 km · arrive 9:00 AM
+    - button "Enable live dot"
+    - link "Open full map":
+      - /url: https://www.openstreetmap.org/directions?engine=fossgis_osrm_foot&route=37.34380%2C-121.92030%3B53.46430%2C-2.23541
+  - generic: On-time confidence
+  - generic: 51%
+  - generic: Typical 2511h 00m · bad day 2887h 14m
+  - generic: +371h 32m earlier → 90%
+  - generic: History seminar
+  - generic: Main Library, Lloyd Street North, Chorlton-on-Medlock, Manchester
+  - button "Play morning briefing":
+    - text: Brief me
+  - strong: Walking route
+  - generic: 11729.1 km · 2515h 33m estimate
+  - generic "Wake time explanation":
+    - generic: Offline simulation
+    - generic: Updated 9:49 AM
+    - strong: Dorm
+    - generic: to
+    - strong: Main Library, Lloyd Street North, Chorlton-on-Medlock, Manchester
+    - generic: Walk · 11729.1 km · Simulated traffic (offline)
+    - generic: Travel mode
+    - group "Travel mode":
+      - button "Use Drive":
+        - generic: Drive
+        - generic: ~284h 49m
+      - button "Use Walk" [pressed]:
+        - generic: Walk
+        - generic: ~2500h 02m
+      - button "Use Bike":
+        - generic: Bike
+        - generic: ~769h 28m
+      - button "Use Transit":
+        - generic: Transit
+        - generic: ~489h 01m
+    - generic: Arrive 9:00 AM
+    - generic: "- 10m buffer"
+    - generic: "- 2515h 33m travel"
+    - generic: "- 45m prep"
+    - generic: "- 5m wake cushion"
+  - generic: Walk timing across your morning
+  - generic: Leave 1:17 PM
+  - img "Walk timing across your morning from 5 AM to 11 AM. Planned departure is 1:17 PM.":
+    - generic: "6"
+    - generic: "7"
+    - generic: "8"
+    - generic: "9"
+    - generic: "10"
+  - strong: Use Calendar reminders for critical mornings
+  - generic: Browser alerts work best while Departure is open or installed as a PWA; calendar reminders are the system-level backup.
+  - button "Add reminders":
+    - text: Add reminders
+  - button "Simulate morning":
+    - text: Simulate morning
+  - complementary "Morning setup":
+    - region "Setup checklist":
+      - generic: Setup
+      - strong: Morning reliability
+      - generic: 2/5 ready
+      - progressbar "Morning setup progress"
+      - button "Start location Dorm":
+        - generic: Done
+        - strong: Start location
+        - generic: Dorm
+      - button "Reviewed commitment 1 ready":
+        - generic: Done
+        - strong: Reviewed commitment
+        - generic: 1 ready
+      - button "Calendar source Optional, but useful for real mornings":
+        - generic: Next
+        - strong: Calendar source
+        - generic: Optional, but useful for real mornings
+      - button "Alarm tested Test sound, notification, and backup":
+        - generic: Next
+        - strong: Alarm tested
+        - generic: Test sound, notification, and backup
+      - button "Leave check Optional missed-departure safety net":
+        - generic: Next
+        - strong: Leave check
+        - generic: Optional missed-departure safety net
+- contentinfo:
+  - text: Offline traffic simulation
+  - generic: 9:49:50 AM

@@ -259,6 +259,7 @@ export function CalendarConnectors({
                 <button
                   type="button"
                   className="secondary-button"
+                  aria-label={`Import ${provider.name} .ics file`}
                   disabled={busy}
                   onClick={() => fileInputs.current[provider.id]?.click()}
                 >
@@ -268,6 +269,7 @@ export function CalendarConnectors({
                   <button
                     type="button"
                     className="link-button danger-link"
+                    aria-label={`Disconnect ${provider.name}`}
                     disabled={busy}
                     onClick={() => disconnect(provider.id)}
                   >
@@ -282,6 +284,7 @@ export function CalendarConnectors({
                 }}
                 className="visually-hidden"
                 type="file"
+                aria-label={`Choose ${provider.name} .ics file`}
                 accept=".ics,text/calendar"
                 onChange={(event) => {
                   const file = event.target.files?.[0];

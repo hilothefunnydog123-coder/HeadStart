@@ -1,0 +1,64 @@
+- banner:
+  - heading "Departure" [level=1]
+  - paragraph: Wake up exactly when you need to.
+  - button "Open profile menu for Alex Reviewer":
+    - generic: A
+    - strong: Alex Reviewer
+    - generic: profile.review@example.com
+  - tablist "Sections":
+    - tab "Alarm"
+    - tab "Commitments" [selected]
+    - tab "Settings"
+- tabpanel "Commitments":
+  - generic: Schedule
+  - heading "Commitments" [level=2]
+  - paragraph: Add where you need to be. Departure handles when to wake and leave.
+  - generic: 1 active
+  - generic "Enabled":
+    - checkbox "Disable Button audit class" [checked]
+  - button "Button audit class 09:00 · Bellarmine College Preparatory, West Hedding Street, Rose Garden, San Jose" [expanded]:
+    - strong: Button audit class
+    - generic: 09:00 · Bellarmine College Preparatory, West Hedding Street, Rose Garden, San Jose
+  - button "Delete commitment":
+  - tablist "Commitment steps":
+    - tab "1 What & when":
+      - generic: "1"
+      - text: What & when
+    - tab "2 Where":
+      - generic: "2"
+      - text: Where
+    - tab "3 Travel & repeats" [selected]:
+      - generic: "3"
+      - text: Travel & repeats
+  - generic: Travel mode
+  - group "Travel mode":
+    - button "Drive" [pressed]:
+      - generic: Drive
+    - button "Walk":
+      - generic: Walk
+    - button "Bike":
+      - generic: Bike
+    - button "Transit":
+      - generic: Transit
+  - generic: Repeats
+  - group "Schedule type":
+    - button "Weekly" [pressed]
+    - button "One day"
+  - group "Repeat days":
+    - button "Sun"
+    - button "Mon" [pressed]
+    - button "Tue" [pressed]
+    - button "Wed" [pressed]
+    - button "Thu" [pressed]
+    - button "Fri" [pressed]
+    - button "Sat"
+  - button "Back"
+  - button "Done"
+  - button "New commitment":
+    - text: New commitment
+  - generic "Calendar import Google Calendar or .ics files":
+    - generic: Calendar import
+    - generic: Google Calendar or .ics files
+- contentinfo:
+  - text: Offline traffic simulation
+  - generic: 9:44:21 AM
