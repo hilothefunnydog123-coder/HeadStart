@@ -120,7 +120,15 @@ export function CommitmentForm({
   return (
     <div className="commitments">
       {commitments.length === 0 && (
-        <p className="muted">No commitments yet. Add your first one below.</p>
+        <div className="commitments-empty">
+          <span className="commitments-empty-icon" aria-hidden>
+            <Icon name="alarm" size={20} />
+          </span>
+          <div>
+            <strong>Your schedule is clear</strong>
+            <p>Add the first place you need to be and when you need to arrive.</p>
+          </div>
+        </div>
       )}
 
       {visibleCommitments.map((c) => {

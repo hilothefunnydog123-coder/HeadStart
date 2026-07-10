@@ -191,11 +191,14 @@ export function CalendarConnectors({
 
   return (
     <section className="calendar-connectors" aria-label="Calendar connections">
-      <div className="section-heading">
-        <div>
-          <h3>Calendar import</h3>
-          <p className="muted">Imported events become editable commitments.</p>
-        </div>
+      <div className="calendar-connectors-intro">
+        <span className="connector-privacy-icon" aria-hidden>
+          <Icon name="route" size={16} />
+        </span>
+        <p>
+          Connect privately with read-only access. Departure never asks you to
+          publish a calendar.
+        </p>
       </div>
 
       <div className="connector-grid">
@@ -294,7 +297,9 @@ export function CalendarConnectors({
                 </p>
               )}
               {connection.error && (
-                <p className="field-error connector-error">{connection.error}</p>
+                <p className="field-error connector-error" role="alert">
+                  {connection.error}
+                </p>
               )}
             </article>
           );

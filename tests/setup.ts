@@ -1,6 +1,11 @@
 import { beforeAll } from "vitest";
 
 beforeAll(() => {
+  Object.defineProperty(window, "scrollTo", {
+    configurable: true,
+    value: () => undefined,
+  });
+
   Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
     configurable: true,
     value: ((type: string) => {

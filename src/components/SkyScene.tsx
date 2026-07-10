@@ -30,17 +30,17 @@ const STOPS_DARK: Stop[] = [
   { h: 24, top: [8, 10, 16], bottom: [10, 14, 24] },
 ];
 
-/* Light "paper" theme: a bright daytime sky, kept pale so dark UI text reads. */
+/* Light theme: a quiet weathered sky with restrained green and dawn warmth. */
 const STOPS_LIGHT: Stop[] = [
-  { h: 0, top: [214, 221, 235], bottom: [226, 231, 242] },
-  { h: 5, top: [210, 219, 236], bottom: [224, 227, 240] },
-  { h: 6.5, top: [205, 219, 238], bottom: [243, 228, 212] },
-  { h: 8, top: [200, 220, 241], bottom: [226, 238, 244] },
-  { h: 12, top: [194, 216, 240], bottom: [230, 240, 248] },
-  { h: 17, top: [203, 214, 237], bottom: [238, 226, 228] },
-  { h: 19, top: [205, 205, 230], bottom: [238, 221, 226] },
-  { h: 21, top: [211, 216, 234], bottom: [224, 228, 240] },
-  { h: 24, top: [214, 221, 235], bottom: [226, 231, 242] },
+  { h: 0, top: [224, 230, 227], bottom: [235, 238, 236] },
+  { h: 5, top: [218, 228, 225], bottom: [235, 234, 229] },
+  { h: 6.5, top: [210, 227, 223], bottom: [244, 231, 216] },
+  { h: 8, top: [211, 229, 225], bottom: [234, 241, 238] },
+  { h: 12, top: [207, 225, 222], bottom: [237, 242, 240] },
+  { h: 17, top: [214, 225, 223], bottom: [243, 231, 226] },
+  { h: 19, top: [219, 219, 218], bottom: [242, 229, 226] },
+  { h: 21, top: [221, 228, 225], bottom: [235, 237, 234] },
+  { h: 24, top: [224, 230, 227], bottom: [235, 238, 236] },
 ];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

@@ -329,13 +329,21 @@ export function PlacePicker({
         </div>
       )}
 
-      {searchError && <p className="field-error">{searchError}</p>}
+      {searchError && (
+        <p className="field-error" role="alert">
+          {searchError}
+        </p>
+      )}
 
       <button type="button" className="link-button" onClick={useMyLocation}>
         <Icon name="pin" size={15} />
         Use current location
       </button>
-      {geoError && <p className="field-error">{geoError}</p>}
+      {geoError && (
+        <p className="field-error" role="alert">
+          {geoError}
+        </p>
+      )}
 
       <details className="coordinate-details">
         <summary>Coordinates</summary>

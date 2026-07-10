@@ -89,6 +89,18 @@ function DepartureApp({
   const [tab, setTab] = useState<Tab>("alarm");
   const { now, control } = useClock();
 
+  const openTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    });
+  };
+
   useEffect(() => {
     saveState(state, authUser.id);
   }, [state, authUser.id]);
@@ -270,7 +282,7 @@ function DepartureApp({
           result.metadata,
         );
       }
-      setTab("commitments");
+      openTab("commitments");
       window.history.replaceState(
         {},
         "",
@@ -292,7 +304,7 @@ function DepartureApp({
           ? error.message
           : "Calendar connector could not finish.",
       );
-      setTab("commitments");
+      openTab("commitments");
       window.history.replaceState(
         {},
         "",
@@ -307,7 +319,7 @@ function DepartureApp({
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app app-${tab}`}>
       <SkyScene now={now} />
       <ReplanToast message={replan} />
       <header className="app-header">
@@ -323,7 +335,17 @@ function DepartureApp({
           </div>
           <div className="account-actions">
             <span className="account-chip" title={authUser.email}>
-              {authUser.name}
+              {authUser.avatarUrl ? (
+                <img src={authUser.avatarUrl} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="account-avatar" aria-hidden>
+                  {authUser.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span className="account-chip-copy">
+                <strong>{authUser.name}</strong>
+                <small>{authUser.email}</small>
+              </span>
             </span>
             <button
               type="button"
@@ -343,7 +365,7 @@ function DepartureApp({
               aria-selected={tab === t}
               aria-controls={`${t}-panel`}
               className={`tab ${tab === t ? "tab-active" : ""}`}
-              onClick={() => setTab(t)}
+              onClick={() => openTab(t)}
             >
               {t === "alarm" ? "Alarm" : t === "commitments" ? "Commitments" : "Settings"}
             </button>
@@ -371,43 +393,58 @@ function DepartureApp({
             {planResult.status === "empty" && (
               <EmptyState
                 phase={planResult.phase}
-                goto={(t) => setTab(t)}
+                goto={openTab}
               />
             )}
             {planResult.status === "ready" && livePlan && (
               <>
-                <SetupChecklist
-                  settings={state.settings}
-                  commitments={state.commitments}
-                  calendarConnections={state.calendarConnections}
-                  goto={(t) => setTab(t)}
-                />
-                <AlarmCard
-                  plan={livePlan}
-                  now={now}
-                  settings={state.settings}
-                  liveStatus={liveDepartureStatus}
-                  onReviewLocationConsent={() => setTab("settings")}
-                  onTravelModeChange={updateCommitmentTravelMode}
-                  confidence={confidence}
-                  briefing={{
-                    supported: briefing.supported,
-                    speaking: briefing.speaking,
-                    onBrief: briefing.speaking ? briefing.stop : onBrief,
-                  }}
-                />
-                <DemoBar control={control} plan={livePlan} now={now} />
+                <div className="alarm-workspace">
+                  <div className="alarm-primary">
+                    <AlarmCard
+                      plan={livePlan}
+                      now={now}
+                      settings={state.settings}
+                      liveStatus={liveDepartureStatus}
+                      onReviewLocationConsent={() => openTab("settings")}
+                      onTravelModeChange={updateCommitmentTravelMode}
+                      confidence={confidence}
+                      briefing={{
+                        supported: briefing.supported,
+                        speaking: briefing.speaking,
+                        onBrief: briefing.speaking ? briefing.stop : onBrief,
+                      }}
+                    />
+                    <DemoBar control={control} plan={livePlan} now={now} />
+                  </div>
+                  <aside className="alarm-sidebar" aria-label="Morning setup">
+                    <SetupChecklist
+                      settings={state.settings}
+                      commitments={state.commitments}
+                      calendarConnections={state.calendarConnections}
+                      goto={openTab}
+                    />
+                  </aside>
+                </div>
               </>
             )}
           </>
         )}
 
         {tab === "commitments" && (
-          <div className="panel">
-            <h2 className="panel-title">Commitments</h2>
-            <p className="muted panel-lead">
-              Add where you need to be. Departure handles when to wake and leave.
-            </p>
+          <div className="panel panel-wide">
+            <div className="panel-heading-row">
+              <div>
+                <span className="page-kicker">Schedule</span>
+                <h2 className="panel-title">Commitments</h2>
+                <p className="muted panel-lead">
+                  Add where you need to be. Departure handles when to wake and leave.
+                </p>
+              </div>
+              <span className="panel-count">
+                {state.commitments.filter((commitment) => commitment.enabled).length}{" "}
+                active
+              </span>
+            </div>
             <CommitmentForm
               commitments={state.commitments}
               placeSuggestions={destinationSuggestions}
@@ -441,8 +478,16 @@ function DepartureApp({
         )}
 
         {tab === "settings" && (
-          <div className="panel">
-            <h2 className="panel-title">Settings</h2>
+          <div className="panel panel-wide">
+            <div className="panel-heading-row">
+              <div>
+                <span className="page-kicker">Preferences</span>
+                <h2 className="panel-title">Settings</h2>
+                <p className="muted panel-lead">
+                  Tune your timing, alerts, saved places, and live route checks.
+                </p>
+              </div>
+            </div>
             <SettingsPanel
               settings={state.settings}
               testPlan={livePlan}
@@ -609,8 +654,23 @@ function SetupChecklist({
   return (
     <section className="setup-checklist" aria-label="Setup checklist">
       <div className="setup-checklist-head">
-        <strong>Morning reliability checklist</strong>
+        <div>
+          <span className="page-kicker">Setup</span>
+          <strong>Morning reliability</strong>
+        </div>
         <span>{items.length - incomplete.length}/{items.length} ready</span>
+      </div>
+      <div
+        className="setup-progress"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={items.length}
+        aria-valuenow={items.length - incomplete.length}
+        aria-label="Morning setup progress"
+      >
+        <span
+          style={{ width: `${((items.length - incomplete.length) / items.length) * 100}%` }}
+        />
       </div>
       <div className="setup-items">
         {items.map((item) => (
@@ -621,7 +681,7 @@ function SetupChecklist({
             onClick={() => goto(item.tab)}
           >
             <span className="setup-check" aria-hidden>
-              {item.done ? "OK" : "!"}
+              {item.done ? "Done" : "Next"}
             </span>
             <span>
               <strong>{item.label}</strong>

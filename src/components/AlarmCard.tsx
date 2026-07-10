@@ -149,92 +149,104 @@ export function AlarmCard({
 
   return (
     <section className={`alarm-card ${h.className}`}>
-      <div className="alarm-dial">
-        <RadialTimeline plan={plan} now={now}>
-          <div role="status" aria-live="polite" aria-atomic="true">
-            <p className="ring-eyebrow">{h.eyebrow}</p>
-            <div className="ring-big">{h.big}</div>
-            <p className="ring-sub">{h.sub}</p>
+      <div className="alarm-overview-grid">
+        <div className="alarm-hero-block">
+          <div className="alarm-dial">
+            <RadialTimeline plan={plan} now={now}>
+              <div role="status" aria-live="polite" aria-atomic="true">
+                <p className="ring-eyebrow">{h.eyebrow}</p>
+                <div className="ring-big">{h.big}</div>
+                <p className="ring-sub">{h.sub}</p>
+              </div>
+            </RadialTimeline>
           </div>
-        </RadialTimeline>
-      </div>
 
-      <div className="alarm-chips">
-        {chips.map((c) => (
-          <div
-            key={c.key}
-            className={`chip-stat ${active === c.key ? "chip-stat-active" : ""}`}
-          >
-            <span className="chip-stat-label">{c.label}</span>
-            <span className="chip-stat-time">{formatClock(c.at)}</span>
+          <div className="alarm-chips">
+            {chips.map((c) => (
+              <div
+                key={c.key}
+                className={`chip-stat ${active === c.key ? "chip-stat-active" : ""}`}
+              >
+                <span className="chip-stat-label">{c.label}</span>
+                <span className="chip-stat-time">{formatClock(c.at)}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <LiveDeparturePanel
-        status={liveStatus}
-        showEnablePrompt={plan.phase === "prep" || plan.phase === "leave"}
-        onReviewLocationConsent={onReviewLocationConsent}
-      />
-      <RouteMap
-        plan={plan}
-        settings={settings}
-        now={now}
-        onEnableLocation={onReviewLocationConsent}
-      />
-
-      {confidence && <ConfidenceMeter confidence={confidence} />}
-
-      <div className="alarm-commitment">
-        <span className="mode-icon" aria-hidden>
-          <Icon name={MODE_ICON[commitment.travelMode] ?? "pin"} size={22} />
-        </span>
-        <div className="commitment-info">
-          <div className="commitment-title">{commitment.title}</div>
-          <div className="commitment-dest">
-            {isCatch
-              ? `Departs ${formatClock(plan.arriveBy)} · ${commitment.destination.label}`
-              : commitment.destination.label}
-          </div>
+          <LiveDeparturePanel
+            status={liveStatus}
+            showEnablePrompt={plan.phase === "prep" || plan.phase === "leave"}
+            onReviewLocationConsent={onReviewLocationConsent}
+          />
         </div>
-        {briefing.supported && (
+        <RouteMap
+          plan={plan}
+          settings={settings}
+          now={now}
+          onEnableLocation={onReviewLocationConsent}
+        />
+      </div>
+
+      <div className="alarm-signal-grid">
+        {confidence && <ConfidenceMeter confidence={confidence} />}
+        <div className="alarm-context-stack">
+          <div className="alarm-commitment">
+            <span className="mode-icon" aria-hidden>
+              <Icon name={MODE_ICON[commitment.travelMode] ?? "pin"} size={22} />
+            </span>
+            <div className="commitment-info">
+              <div className="commitment-title">{commitment.title}</div>
+              <div className="commitment-dest">
+                {isCatch
+                  ? `Departs ${formatClock(plan.arriveBy)} · ${commitment.destination.label}`
+                  : commitment.destination.label}
+              </div>
+            </div>
+            {briefing.supported && (
+              <button
+                type="button"
+                className={`brief-btn ${briefing.speaking ? "on" : ""}`}
+                onClick={briefing.onBrief}
+                aria-label={briefing.speaking ? "Stop briefing" : "Play morning briefing"}
+              >
+                <Icon name="sound" size={17} />
+                {briefing.speaking ? "Stop" : "Brief me"}
+              </button>
+            )}
+          </div>
+          <TrafficBadge
+            estimate={plan.estimate}
+            mode={plan.commitment.travelMode}
+          />
+        </div>
+      </div>
+
+      <div className="alarm-detail-grid">
+        <PlanDetails
+          plan={plan}
+          settings={settings}
+          prepMinutes={prepMinutes}
+          now={now}
+          onTravelModeChange={onTravelModeChange}
+        />
+        <TrafficSparkline
+          leaveBy={plan.leaveBy}
+          mode={plan.commitment.travelMode}
+        />
+      </div>
+
+      <div className="alarm-backup-grid">
+        <AlarmReliabilityNotice />
+        <div className="alarm-actions">
           <button
             type="button"
-            className={`brief-btn ${briefing.speaking ? "on" : ""}`}
-            onClick={briefing.onBrief}
-            aria-label={briefing.speaking ? "Stop briefing" : "Play morning briefing"}
+            className="secondary-button alarm-action-button"
+            onClick={() => downloadSystemReminders(plan)}
           >
-            <Icon name="sound" size={17} />
-            {briefing.speaking ? "Stop" : "Brief me"}
+            <Icon name="alarm" size={16} />
+            Add reminders
           </button>
-        )}
-      </div>
-
-      <TrafficBadge
-        estimate={plan.estimate}
-        mode={plan.commitment.travelMode}
-      />
-      <PlanDetails
-        plan={plan}
-        settings={settings}
-        prepMinutes={prepMinutes}
-        now={now}
-        onTravelModeChange={onTravelModeChange}
-      />
-      <TrafficSparkline
-        leaveBy={plan.leaveBy}
-        mode={plan.commitment.travelMode}
-      />
-      <AlarmReliabilityNotice />
-      <div className="alarm-actions">
-        <button
-          type="button"
-          className="secondary-button alarm-action-button"
-          onClick={() => downloadSystemReminders(plan)}
-        >
-          <Icon name="alarm" size={16} />
-          Add reminders to Calendar
-        </button>
+        </div>
       </div>
     </section>
   );

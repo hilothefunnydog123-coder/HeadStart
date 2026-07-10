@@ -94,11 +94,14 @@ export function SettingsPanel({
 
   return (
     <div className="settings">
-      <section className="settings-card saved-places-card" aria-labelledby="saved-places-heading">
+      <section
+        className="settings-card saved-places-card settings-saved-card"
+        aria-labelledby="saved-places-heading"
+      >
         <h3 id="saved-places-heading">Saved places</h3>
         <p>
-          Departure will not guess Home from location permission. Save Home,
-          Work, or School only when you choose them.
+          Home is your starting point. Work and School are optional shortcuts you
+          choose yourself.
         </p>
         <div className="saved-place-list">
           {SAVED_PLACES.map((item) => {
@@ -158,78 +161,104 @@ export function SettingsPanel({
         )}
       </section>
 
-      <div className="field-grid">
-        <label className="field">
-          <span>Get ready (min)</span>
-          <input
-            type="number"
-            min={0}
-            max={240}
-            value={settings.prepMinutes}
-            onChange={(e) => set("prepMinutes", clampInt(e.target.value, 0, 240))}
-          />
-          <small className="muted">Time from waking up to walking out.</small>
-        </label>
-        <label className="field">
-          <span>Arrival cushion (min)</span>
-          <input
-            type="number"
-            min={0}
-            max={120}
-            value={settings.arrivalBufferMinutes}
-            onChange={(e) =>
-              set("arrivalBufferMinutes", clampInt(e.target.value, 0, 120))
-            }
-          />
-          <small className="muted">Safety buffer before the meeting.</small>
-        </label>
-        <label className="field">
-          <span>Wake cushion (min)</span>
-          <input
-            type="number"
-            min={0}
-            max={60}
-            value={settings.wakeAheadMinutes}
-            onChange={(e) =>
-              set("wakeAheadMinutes", clampInt(e.target.value, 0, 60))
-            }
-          />
-          <small className="muted">Extra cushion before the strict wake time.</small>
-        </label>
-      </div>
-
-      <div className="field-grid">
-        <label className="field">
-          <span>Traffic</span>
-          <select
-            value={settings.trafficProvider}
-            onChange={(e) => set("trafficProvider", e.target.value)}
-          >
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {googleSelected && (
-          <label className="field field-wide">
-            <span>Google Routes key</span>
-            <input
-              type="password"
-              value={settings.apiKey ?? ""}
-              placeholder="Paste key to enable live traffic"
-              onChange={(e) => set("apiKey", e.target.value)}
-            />
-            <small className="muted">
-              Stored only in your browser. Without a key the app uses the offline
-              simulation.
-            </small>
+      <section
+        className="settings-card settings-timing-card"
+        aria-labelledby="timing-heading"
+      >
+        <h3 id="timing-heading">Morning timing</h3>
+        <p>Set the buffers Departure uses to work backward from arrival.</p>
+        <div className="field-grid timing-field-grid">
+          <label className="field">
+            <span>Get ready</span>
+            <div className="number-field">
+              <input
+                type="number"
+                min={0}
+                max={240}
+                value={settings.prepMinutes}
+                onChange={(e) => set("prepMinutes", clampInt(e.target.value, 0, 240))}
+              />
+              <span>min</span>
+            </div>
+            <small className="muted">Wake up to walking out.</small>
           </label>
-        )}
-      </div>
+          <label className="field">
+            <span>Arrive early</span>
+            <div className="number-field">
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={settings.arrivalBufferMinutes}
+                onChange={(e) =>
+                  set("arrivalBufferMinutes", clampInt(e.target.value, 0, 120))
+                }
+              />
+              <span>min</span>
+            </div>
+            <small className="muted">Safety before the event.</small>
+          </label>
+          <label className="field">
+            <span>Wake cushion</span>
+            <div className="number-field">
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={settings.wakeAheadMinutes}
+                onChange={(e) =>
+                  set("wakeAheadMinutes", clampInt(e.target.value, 0, 60))
+                }
+              />
+              <span>min</span>
+            </div>
+            <small className="muted">Extra time before the strict wake time.</small>
+          </label>
+        </div>
+      </section>
 
-      <section className="settings-card" aria-labelledby="alerts-heading">
+      <section
+        className="settings-card settings-routing-card"
+        aria-labelledby="routing-heading"
+      >
+        <h3 id="routing-heading">Route estimates</h3>
+        <p>Choose between the private offline estimate and live Google traffic.</p>
+        <div className="field-grid routing-field-grid">
+          <label className="field">
+            <span>Traffic source</span>
+            <select
+              value={settings.trafficProvider}
+              onChange={(e) => set("trafficProvider", e.target.value)}
+            >
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {googleSelected && (
+            <label className="field field-wide">
+              <span>Google Routes key</span>
+              <input
+                type="password"
+                value={settings.apiKey ?? ""}
+                placeholder="Paste key to enable live traffic"
+                onChange={(e) => set("apiKey", e.target.value)}
+              />
+              <small className="muted">
+                Stored only in this browser. Without a key, Departure uses the
+                offline estimate.
+              </small>
+            </label>
+          )}
+        </div>
+      </section>
+
+      <section
+        className="settings-card settings-alerts-card"
+        aria-labelledby="alerts-heading"
+      >
         <h3 id="alerts-heading">Alerts</h3>
         <label className="checkbox-row">
           <input
@@ -322,11 +351,18 @@ export function SettingsPanel({
               Download backup
             </button>
           </div>
-          {alarmTestMessage && <p className="test-message">{alarmTestMessage}</p>}
+          {alarmTestMessage && (
+            <p className="test-message" role="status">
+              {alarmTestMessage}
+            </p>
+          )}
         </div>
       </section>
 
-      <section className="settings-card" aria-labelledby="location-heading">
+      <section
+        className="settings-card settings-location-card"
+        aria-labelledby="location-heading"
+      >
         <h3 id="location-heading">Missed-departure check</h3>
         <p>
           Departure verifies browser location when you turn this on, then checks
@@ -384,10 +420,17 @@ export function SettingsPanel({
             Test location check
           </button>
         </div>
-        {locationMessage && <p className="test-message">{locationMessage}</p>}
+        {locationMessage && (
+          <p className="test-message" role="status">
+            {locationMessage}
+          </p>
+        )}
       </section>
 
-      <section className="settings-card" aria-labelledby="history-heading">
+      <section
+        className="settings-card settings-history-card"
+        aria-labelledby="history-heading"
+      >
         <h3 id="history-heading">Place suggestions</h3>
         <p>
           Suggestions are built only from places you select in this browser. Clear

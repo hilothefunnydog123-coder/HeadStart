@@ -111,6 +111,16 @@ export function AuthPanel({ onAuthenticated }: Props) {
           </button>
         </div>
 
+        <div className="auth-heading">
+          <span className="page-kicker">Your morning, handled</span>
+          <h2>{isSignup ? "Create your Departure account" : "Welcome back"}</h2>
+          <p>
+            {isSignup
+              ? "Save your schedule and keep calendar access private."
+              : "Sign in to see when to wake up, get ready, and leave."}
+          </p>
+        </div>
+
         <button
           type="button"
           className="social-auth-button"
@@ -189,6 +199,10 @@ export function AuthPanel({ onAuthenticated }: Props) {
             {busy ? "Checking..." : isSignup ? "Create account" : "Sign in"}
           </button>
         </form>
+
+        <p className="auth-footnote">
+          Your schedule and saved places stay tied to this account on this device.
+        </p>
       </section>
     </main>
   );
