@@ -11,10 +11,10 @@ export type PlanResult =
 /**
  * Computes the departure plan and keeps it fresh against the supplied clock.
  *
- * We re-run the traffic estimate whenever the inputs change or the clock rolls
- * to a new minute — so the plan tracks changing congestion in real time, and
- * follows a fast-forwarded clock during "Simulate morning". On-screen countdowns
- * stay live sub-minute by deriving from the returned instants in the component.
+ * We re-run the traffic estimate whenever inputs change. Refreshes are adaptive:
+ * every 15 minutes overnight, every 5 minutes as wake time approaches, and every
+ * minute during the active morning. On-screen countdowns stay live sub-minute by
+ * deriving from the returned instants in the component.
  */
 export function usePlan(
   commitments: Commitment[],
@@ -24,7 +24,11 @@ export function usePlan(
   const [result, setResult] = useState<PlanResult>({ status: "loading" });
 
   const inputsKey = JSON.stringify({ commitments, settings });
-  const minuteBucket = Math.floor(now.getTime() / 60_000);
+  const cadenceMinutes = trafficRefreshCadenceMinutes(
+    result.status === "ready" ? result.plan : null,
+    now,
+  );
+  const trafficBucket = Math.floor(now.getTime() / (cadenceMinutes * 60_000));
 
   // Keep the freshest `now` available to the async fetch without making it a
   // dependency (which would refetch every render).
@@ -58,7 +62,18 @@ export function usePlan(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputsKey, minuteBucket]);
+  }, [inputsKey, cadenceMinutes, trafficBucket]);
 
   return result;
+}
+
+export function trafficRefreshCadenceMinutes(
+  plan: DeparturePlan | null,
+  now: Date,
+): 1 | 5 | 15 {
+  if (!plan) return 15;
+  const minutesUntilWake = (plan.wakeBy.getTime() - now.getTime()) / 60_000;
+  if (minutesUntilWake > 180) return 15;
+  if (minutesUntilWake > 30) return 5;
+  return 1;
 }

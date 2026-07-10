@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -42,6 +43,8 @@ import { useAlarmSound } from "./hooks/useAlarmSound";
 import { useLiveDepartureStatus } from "./hooks/useLiveDepartureStatus";
 import { useAlarmNotifications } from "./hooks/useAlarmNotifications";
 import { useBriefing } from "./hooks/useBriefing";
+import { useNativePlanSync } from "./hooks/useNativePlanSync";
+import { useNativeCalendarAutomation } from "./hooks/useNativeCalendarAutomation";
 import { loadState, saveState, type AppState } from "./state/store";
 import {
   getCurrentUser,
@@ -187,6 +190,7 @@ function DepartureApp({
     if (planResult.status !== "ready") return null;
     return refreshPlanTiming(planResult.plan, now);
   }, [planResult, now]);
+  const nativePlanSync = useNativePlanSync(livePlan, state.settings);
 
   // On-time probability from the Monte-Carlo model.
   const confidence = useMemo(
@@ -290,7 +294,7 @@ function DepartureApp({
     return () => window.clearTimeout(id);
   }, [replan]);
 
-  const importCalendarCommitments = (
+  const importCalendarCommitments = useCallback((
     provider: CalendarProviderId,
     imported: Commitment[],
     metadata: {
@@ -312,7 +316,7 @@ function DepartureApp({
         error: undefined,
       }),
     }));
-  };
+  }, []);
 
   const disconnectCalendar = (provider: CalendarProviderId) => {
     setState((s) => ({
@@ -338,6 +342,20 @@ function DepartureApp({
       }),
     }));
   };
+
+  const importDeviceCalendar = useCallback(
+    (imported: Commitment[]) =>
+      importCalendarCommitments("device", imported, {
+        sourceLabel: "Device Calendar",
+        authMode: "device-calendar",
+      }),
+    [importCalendarCommitments],
+  );
+  const nativeCalendarAutomation = useNativeCalendarAutomation({
+    enabled: Boolean(state.settings.calendarAutomationEnabled),
+    fallbackDestination: CALENDAR_FALLBACK_DESTINATION,
+    onImport: importDeviceCalendar,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -567,6 +585,8 @@ function DepartureApp({
               settings={state.settings}
               testPlan={livePlan}
               focusRequest={settingsFocusRequest}
+              nativePlanSync={nativePlanSync}
+              calendarAutomation={nativeCalendarAutomation}
               placeHistoryCount={state.placeHistory.length}
               onChange={(settings) => setState((s) => ({ ...s, settings }))}
               onClearPlaceHistory={() =>
@@ -580,9 +600,12 @@ function DepartureApp({
       <footer className="app-footer">
         <span className="footer-source">
           <Icon name="route" size={14} />
-          {state.settings.trafficProvider === "google" && state.settings.apiKey
-            ? "Live traffic · Google Routes"
-            : "Offline traffic simulation"}
+          {livePlan?.estimate.source ??
+            (state.settings.trafficProvider === "hosted"
+              ? "Departure live traffic"
+              : state.settings.trafficProvider === "google" && state.settings.apiKey
+                ? "Live traffic · Google Routes"
+                : "Offline traffic simulation")}
         </span>
         <span className="clock">{now.toLocaleTimeString()}</span>
       </footer>

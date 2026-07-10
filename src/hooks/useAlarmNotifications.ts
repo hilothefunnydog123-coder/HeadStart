@@ -32,7 +32,7 @@ export function useAlarmNotifications(
   useEffect(() => {
     if (!enabled || !plan || notificationPermission() !== "granted") return;
 
-    const timers: ReturnType<typeof window.setTimeout>[] = [];
+    const timers: number[] = [];
     const schedule = (alert: AlarmNotification, anchor: Date) => {
       const delivery = notificationDeliveryState(alert.at, anchor);
       if (delivery.status === "expired") return;

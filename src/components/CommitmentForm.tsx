@@ -554,5 +554,7 @@ function defaultOneOffDate(): string {
 }
 
 function providerLabel(provider: CalendarProviderId): string {
-  return provider === "google" ? "Google Calendar" : "Apple Calendar";
+  if (provider === "google") return "Google Calendar";
+  if (provider === "apple") return "Apple Calendar";
+  return "Device Calendar";
 }

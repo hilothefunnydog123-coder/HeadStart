@@ -31,7 +31,7 @@ const LEGACY_DEMO_OFFICE: Place = {
   lng: -122.3999,
 };
 
-const CALENDAR_PROVIDERS: CalendarProviderId[] = ["google", "apple"];
+const CALENDAR_PROVIDERS: CalendarProviderId[] = ["google", "apple", "device"];
 
 export function defaultState(): AppState {
   return {
@@ -42,11 +42,13 @@ export function defaultState(): AppState {
       prepMinutes: 45,
       arrivalBufferMinutes: 10,
       wakeAheadMinutes: 5,
-      trafficProvider: "simulated",
+      trafficProvider: "hosted",
       apiKey: "",
       soundEnabled: true,
       notificationsEnabled: false,
       locationTrackingEnabled: false,
+      nativeAlarmsEnabled: true,
+      calendarAutomationEnabled: false,
     },
     commitments: [],
     calendarConnections: defaultCalendarConnections(),

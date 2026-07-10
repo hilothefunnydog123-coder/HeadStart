@@ -35,7 +35,7 @@ interface Props {
 }
 
 const PROVIDERS: {
-  id: CalendarProviderId;
+  id: Exclude<CalendarProviderId, "device">;
   name: string;
   mark: string;
   description: string;
@@ -72,7 +72,9 @@ export function CalendarConnectors({
   const [appleError, setAppleError] = useState<string | null>(null);
   const [busyProvider, setBusyProvider] = useState<CalendarProviderId | null>(null);
   const appleDialog = useRef<HTMLDialogElement | null>(null);
-  const fileInputs = useRef<Record<CalendarProviderId, HTMLInputElement | null>>({
+  const fileInputs = useRef<
+    Partial<Record<CalendarProviderId, HTMLInputElement | null>>
+  >({
     google: null,
     apple: null,
   });
@@ -394,7 +396,9 @@ export function CalendarConnectors({
 }
 
 function providerLabel(provider: CalendarProviderId): string {
-  return provider === "google" ? "Google Calendar" : "Apple Calendar";
+  if (provider === "google") return "Google Calendar";
+  if (provider === "apple") return "Apple Calendar";
+  return "Device Calendar";
 }
 
 function connectionFor(

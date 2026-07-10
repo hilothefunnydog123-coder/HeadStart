@@ -58,8 +58,9 @@ is swappable:
 
 | Provider | Status | Notes |
 | --- | --- | --- |
-| **Simulated** | ✅ default, zero-config | Offline model: distance × mode speed × a smooth rush-hour congestion curve. Deterministic, so no flicker. |
-| **Google Routes** | ✅ implemented, key-gated | Real live-traffic routing via the Routes API. Paste a key in **Settings** to enable; otherwise the app falls back to the simulation. |
+| **Departure live traffic** | ✅ default | Same-site hosted proxy backed by Google Routes. The provider key stays on the server; requests are cached at an adaptive 1/5/15-minute cadence. |
+| **Simulated** | ✅ automatic fallback, zero-config | Offline model: distance × mode speed × a smooth rush-hour congestion curve. A live-provider failure never prevents an alarm plan. |
+| **Google Routes (personal key)** | ✅ developer option | Direct Routes API integration for local development or self-hosting. |
 
 Adding another provider (Mapbox, HERE, a transit API…) is just one file that
 implements `estimate()` and calls `registerProvider()`.
@@ -83,6 +84,12 @@ implements `estimate()` and calls `registerProvider()`.
 - 🔐 **Private calendar sync** for Google (read-only OAuth) and Apple (server-side CalDAV); no public iCal feed required.
 - 👤 **Working accounts** with email/password or a verified Google Account profile.
 - 🔔 **Browser/PWA notifications** for wake and leave reminders when permission is granted.
+- ⏰ **Native system alarms** — AlarmKit on iOS 26 and Alarm Clock exact alarms on Android, with native notification fallbacks.
+- 🔒 **Lock Screen surfaces** — iOS Live Activity, Dynamic Island, StandBy, Lock Screen widgets, and an Android full-screen alarm.
+- 📱 **Home Screen widgets** on iOS and Android showing the next wake and leave times.
+- 🔁 **Background traffic rescheduling** using iOS Background Tasks and Android WorkManager, plus Android boot/time-change restoration.
+- 📆 **Device calendar automation** that imports upcoming timed, physical events after explicit read-only permission.
+- ✅ **Alarm verification center** with a real 10-second OS delivery test and permission/capability checks.
 - 🟡 **Missed-departure alerts** when live location shows you're still at home after leave time.
 - 🔔 **Web-Audio chime** the moment it's time to get up (no audio asset shipped).
 - 📲 **Installable PWA** — add to home screen, works offline.
@@ -106,13 +113,66 @@ npm test           # run the unit tests (Vitest)
 npm run typecheck  # strict TypeScript, no emit
 npm run build      # typecheck + production build to dist/
 npm run preview    # serve the production build
+npm run native:sync    # build the web app and copy it into both native projects
+npm run native:ios     # sync, then open the Xcode project
+npm run native:android # sync, then open the Android Studio project
 ```
 
-### Using live Google traffic
+### Hosted live traffic
+
+Production traffic uses `netlify/functions/traffic.ts`, so the Google credential
+never enters the browser or native bundle. Configure these values before a web
+or native release:
+
+```bash
+# Netlify/server environment only — never prefix this with VITE_
+GOOGLE_ROUTES_API_KEY=your-server-routes-key
+
+# Build-time public origin required by native background workers
+VITE_DEPARTURE_API_BASE_URL=https://your-departure-site.example
+```
+
+The native URL must be absolute HTTPS. The function validates coordinates and
+mode, requests traffic-aware routing, and caches results for 1 minute near wake
+time, 5 minutes during the approach window, and 15 minutes overnight. The
+planner automatically uses its deterministic offline model if the hosted route
+cannot be reached.
+
+### Direct Google traffic for local development
 
 1. Enable the **Routes API** in Google Cloud and create an API key.
 2. In the app, open **Settings → Traffic source → Google Routes** and paste the
-   key. It's stored only in your browser.
+   key. This optional developer path stores the key only in that browser.
+
+### Native iOS and Android apps
+
+The Capacitor projects live in `ios/` and `android/`; the custom
+`DepartureNative` bridge owns alarms, calendar reads, background refresh, and
+glanceable surfaces instead of depending on WebView timers.
+
+For iOS:
+
+1. Run `npm run native:sync`, then open `ios/App/App.xcodeproj` in Xcode.
+2. Choose a Development Team for both **App** and **DepartureWidgets**. Register
+   `com.departure.alarm`, `com.departure.alarm.widgets`, and the shared App Group
+   `group.com.departure.alarm` in the Apple developer account.
+3. Build for iOS 26 to exercise AlarmKit. iOS 16–25 use the time-sensitive
+   notification fallback; Live Activities require iOS 16.2 or later.
+
+For Android:
+
+1. Install JDK 21 and Android SDK 36, set `JAVA_HOME` and `ANDROID_HOME`, then
+   run `npm run native:sync` and open `android/` in Android Studio.
+2. Departure declares `USE_EXACT_ALARM` because precise user-created wake alarms
+   are core functionality. A Play Store release must qualify under the exact
+   alarm policy. Android 14+ users can separately disable full-screen alarm
+   presentation; the in-app reliability center detects that state and links to
+   the correct system settings page.
+
+Use **Settings → Alarm reliability → Run 10-second test** on a physical device
+before relying on an important alarm. It reports exact-alarm access,
+notifications, background refresh, hosted traffic, widget/Lock Screen support,
+and whether the current plan has been synchronized.
 
 ### Using private Google Calendar sync
 
@@ -154,6 +214,11 @@ Live missed-departure checks use browser geolocation only after the planned leav
 time and before the arrival time. The app stores the on/off preference locally;
 current coordinates are kept in memory for the active page session.
 
+In the native app, **Device calendar automation** is a separate explicit opt-in.
+It reads the next 14 days, ignores all-day, cancelled, and remote-only events,
+and turns physical events into editable commitments. Access remains read-only
+and can be disabled from the same reliability panel.
+
 Learned place suggestions are stored only in this browser and can be cleared from
 Settings.
 
@@ -177,13 +242,18 @@ src/
     calendar.ts         iCal import → editable commitments
     traffic/
       provider.ts       TrafficProvider interface + registry
-      simulated.ts      offline rush-hour model (default)
+      hosted.ts         same-site traffic proxy client (default)
+      simulated.ts      offline rush-hour model and automatic fallback
       google.ts         Google Routes API implementation
+  native/               typed Capacitor bridge used by the React app
   state/store.ts        localStorage persistence + demo seed
-  hooks/                useClock (real/simulated), usePlan, useBriefing, useAlarmSound
+  hooks/                planning, adaptive refresh, native sync, calendar automation
   components/           AlarmCard, RadialTimeline, SkyScene, DemoBar,
                         ConfidenceMeter, TrafficSparkline, forms …
 tests/                  Vitest: geo, time, simulation, engine, confidence, calendar
+ios/                    AlarmKit, BackgroundTasks, EventKit, Live Activity + widgets
+android/                AlarmManager, WorkManager, CalendarContract + app widget
+netlify/functions/      hosted traffic and private calendar server functions
 ```
 
 The `core/` layer has no React or DOM dependencies, which is why the timeline
@@ -192,10 +262,11 @@ unit tests.
 
 ## Tech
 
-React 18 · TypeScript (strict) · Vite · Vitest · PWA. No UI framework — the
-design system is hand-written CSS with the Fraunces + Inter type pairing. The
-living sky is a `<canvas>`; the briefing uses the Web Speech API; both degrade
-gracefully where unsupported.
+React 18 · TypeScript (strict) · Vite · Vitest · Capacitor · Swift/SwiftUI ·
+Java/AndroidX · Netlify Functions · PWA. No web UI framework — the design system
+is hand-written CSS with the Fraunces + Inter type pairing. The living sky is a
+`<canvas>`; the briefing uses the Web Speech API; both degrade gracefully where
+unsupported.
 
 ## License
 

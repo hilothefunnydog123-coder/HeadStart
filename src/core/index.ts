@@ -5,8 +5,10 @@
 import { registerProvider } from "./traffic/provider";
 import { simulatedProvider } from "./traffic/simulated";
 import { googleProvider } from "./traffic/google";
+import { hostedProvider } from "./traffic/hosted";
 
 registerProvider(simulatedProvider);
 registerProvider(googleProvider);
+registerProvider(hostedProvider);
 
-export { simulatedProvider, googleProvider };
+export { simulatedProvider, googleProvider, hostedProvider };

@@ -142,6 +142,7 @@ export async function planNextDeparture(
   now: Date,
 ): Promise<DeparturePlan | { phase: "no-home" | "no-commitment" }> {
   if (!settings.home) return { phase: "no-home" };
+  const home = settings.home;
 
   const next = selectNextCommitment(commitments, now);
   if (!next) return { phase: "no-commitment" };
@@ -154,26 +155,23 @@ export async function planNextDeparture(
   // Estimate for a departure near the actual leave window rather than "now",
   // so overnight planning still reflects morning rush hour. We approximate by
   // first estimating at arrival time, then refining once around the leave time.
-  let estimate = await provider.estimate({
-    origin: settings.home,
-    destination: next.commitment.destination,
-    mode: next.commitment.travelMode,
-    departAt: next.arriveBy,
-    apiKey: settings.apiKey,
-  });
-
-  const approxLeave = new Date(
-    next.arriveBy.getTime() -
-      arrivalBufferMinutesFor(next.commitment, settings) * MS_PER_MIN -
-      estimate.durationSeconds * 1000,
-  );
-  estimate = await provider.estimate({
-    origin: settings.home,
-    destination: next.commitment.destination,
-    mode: next.commitment.travelMode,
-    departAt: approxLeave,
-    apiKey: settings.apiKey,
-  });
+  // A live-provider failure must never leave the user without a usable plan.
+  let estimate: TravelEstimate;
+  try {
+    estimate = await refinedEstimate(provider, next, settings, home);
+  } catch (error) {
+    if (provider.id === "simulated") throw error;
+    const fallback = await refinedEstimate(
+      getProvider("simulated")!,
+      next,
+      settings,
+      home,
+    );
+    estimate = {
+      ...fallback,
+      source: `${fallback.source} · live fallback`,
+    };
+  }
 
   return buildPlan({
     commitment: next.commitment,
@@ -182,4 +180,32 @@ export async function planNextDeparture(
     settings,
     now,
   });
+}
+
+async function refinedEstimate(
+  provider: NonNullable<ReturnType<typeof getProvider>>,
+  next: NonNullable<ReturnType<typeof selectNextCommitment>>,
+  settings: Settings,
+  home: NonNullable<Settings["home"]>,
+): Promise<TravelEstimate> {
+  let estimate = await provider.estimate({
+    origin: home,
+    destination: next.commitment.destination,
+    mode: next.commitment.travelMode,
+    departAt: next.arriveBy,
+    apiKey: settings.apiKey,
+  });
+  const approxLeave = new Date(
+    next.arriveBy.getTime() -
+      arrivalBufferMinutesFor(next.commitment, settings) * MS_PER_MIN -
+      estimate.durationSeconds * 1000,
+  );
+  estimate = await provider.estimate({
+    origin: home,
+    destination: next.commitment.destination,
+    mode: next.commitment.travelMode,
+    departAt: approxLeave,
+    apiKey: settings.apiKey,
+  });
+  return estimate;
 }

@@ -16,11 +16,16 @@ import { listProviders } from "../core/traffic/provider";
 import { Icon } from "./Icon";
 import { PlacePicker } from "./PlacePicker";
 import type { DeparturePlan } from "../core/types";
+import { AlarmVerificationPanel } from "./AlarmVerificationPanel";
+import type { NativeCalendarAutomationState } from "../hooks/useNativeCalendarAutomation";
+import type { NativePlanSyncState } from "../hooks/useNativePlanSync";
 
 interface Props {
   settings: Settings;
   testPlan: DeparturePlan | null;
   focusRequest?: SettingsFocusRequest | null;
+  nativePlanSync?: NativePlanSyncState;
+  calendarAutomation?: NativeCalendarAutomationState;
   onChange: (settings: Settings) => void;
   placeHistoryCount: number;
   onClearPlaceHistory: () => void;
@@ -61,6 +66,8 @@ export function SettingsPanel({
   settings,
   testPlan,
   focusRequest = null,
+  nativePlanSync = { status: "web" },
+  calendarAutomation = EMPTY_CALENDAR_AUTOMATION,
   onChange,
   placeHistoryCount,
   onClearPlaceHistory,
@@ -130,7 +137,9 @@ export function SettingsPanel({
     if (editingPlace === kind) setEditingPlace(null);
   };
 
-  const providers = listProviders();
+  const providers = listProviders().sort((left, right) =>
+    left.id === "hosted" ? -1 : right.id === "hosted" ? 1 : 0,
+  );
   const googleSelected = settings.trafficProvider === "google";
 
   return (
@@ -264,7 +273,11 @@ export function SettingsPanel({
         aria-labelledby="routing-heading"
       >
         <h3 id="routing-heading">Route estimates</h3>
-        <p>Choose between the private offline estimate and live Google traffic.</p>
+        <p>
+          Departure live traffic uses a hosted key and falls back safely to the
+          private offline estimate. A personal Google key remains available for
+          development.
+        </p>
         <div className="field-grid routing-field-grid">
           <label className="field">
             <span>Traffic source</span>
@@ -296,6 +309,13 @@ export function SettingsPanel({
           )}
         </div>
       </section>
+
+      <AlarmVerificationPanel
+        settings={settings}
+        nativePlanSync={nativePlanSync}
+        calendarAutomation={calendarAutomation}
+        onChange={onChange}
+      />
 
       <section
         ref={alertsRef}
@@ -511,6 +531,14 @@ export function SettingsPanel({
     </div>
   );
 }
+
+const EMPTY_CALENDAR_AUTOMATION: NativeCalendarAutomationState = {
+  status: "web",
+  importedCount: 0,
+  capabilities: null,
+  enable: async () => undefined,
+  refresh: async () => undefined,
+};
 
 function clampInt(raw: string, min: number, max: number): number {
   const n = Math.round(Number(raw));

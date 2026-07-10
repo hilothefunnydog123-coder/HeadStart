@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Departure</string>
+    <string name="title_activity_main">Departure</string>
+    <string name="package_name">com.departure.alarm</string>
+    <string name="custom_url_scheme">com.departure.alarm</string>
+    <string name="departure_widget_description">Your next wake and leave times</string>
+    <string name="departure_wake_eyebrow">DEPARTURE WAKE ALARM</string>
+    <string name="departure_leave_eyebrow">DEPARTURE CHECK</string>
+    <string name="departure_wake_title">Time to wake up</string>
+    <string name="departure_leave_title">Leave now</string>
+    <string name="departure_wake_detail">Your morning plan is ready for %1$s</string>
+    <string name="departure_leave_detail">Head to %1$s</string>
+    <string name="departure_fallback_destination">your destination</string>
+    <string name="departure_stop_alarm">Stop alarm</string>
+    <string name="departure_im_leaving">I’m leaving</string>
+    <string name="departure_snooze">Snooze 5 minutes</string>
+    <string name="departure_snoozed">Snoozed for 5 minutes</string>
+</resources>

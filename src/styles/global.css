@@ -4237,6 +4237,136 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.settings-verification-card {
+  grid-column: 1 / -1;
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--hair));
+}
+
+.verification-heading-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.verification-heading-row h3,
+.verification-heading-row p {
+  margin: 0;
+}
+
+.verification-heading-row p {
+  margin-top: var(--space-1);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.verification-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-xs);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+}
+
+.verification-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.verification-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+}
+
+.verification-check > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.verification-check strong {
+  font-size: 12px;
+}
+
+.verification-check small {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.verification-status {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.verification-check.pass .verification-status {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+}
+
+.verification-check.fail .verification-status {
+  color: var(--hot);
+  background: color-mix(in srgb, var(--hot) 14%, transparent);
+}
+
+.verification-actions,
+.calendar-automation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.verification-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.verification-web-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.calendar-automation-row {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hair);
+}
+
+.calendar-automation-row > div:first-child {
+  display: grid;
+}
+
+.calendar-automation-row strong {
+  font-size: 12.5px;
+}
+
+.calendar-automation-row small {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+
 .commitments .add-button {
   width: 100%;
   min-width: 0;
@@ -4589,6 +4719,15 @@ button:disabled {
   .profile-dialog-card {
     gap: var(--space-4);
     padding: var(--space-5) var(--space-4);
+  }
+
+  .verification-checks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .calendar-automation-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

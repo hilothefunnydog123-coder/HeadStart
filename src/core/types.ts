@@ -42,14 +42,19 @@ export interface PlaceSuggestionDismissal {
 }
 
 /** Calendar providers the app can import as first-commitment sources. */
-export type CalendarProviderId = "google" | "apple";
+export type CalendarProviderId = "google" | "apple" | "device";
 
 /** Calendar import status persisted with the rest of the local app state. */
 export interface CalendarConnection {
   provider: CalendarProviderId;
   connected: boolean;
   eventCount: number;
-  authMode?: "google-oauth" | "apple-connector" | "file-upload" | "ics-url";
+  authMode?:
+    | "google-oauth"
+    | "apple-connector"
+    | "device-calendar"
+    | "file-upload"
+    | "ics-url";
   lastSyncedAt?: string;
   sourceLabel?: string;
   sourceUrl?: string;
@@ -136,6 +141,10 @@ export interface Settings {
   notificationsEnabled: boolean;
   /** Use browser location while the app is open to detect missed departures. */
   locationTrackingEnabled: boolean;
+  /** Schedule OS-backed wake and leave alarms when running in the native app. */
+  nativeAlarmsEnabled?: boolean;
+  /** Import physical commitments automatically from the device calendar. */
+  calendarAutomationEnabled?: boolean;
 }
 
 /** A traffic-aware travel-time estimate for one leg. */
